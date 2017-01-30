@@ -101,9 +101,9 @@ namespace Acumatica.DeviceHub
 
             return Task.Run(() =>
             {
-                try
+                while (true)
                 {
-                    while (true)
+                    try
                     {
                         if (cancellationToken.IsCancellationRequested)
                         {
@@ -127,32 +127,25 @@ namespace Acumatica.DeviceHub
 
                             _progress.Report(new MonitorMessage(String.Format(Strings.ScaleWeightNotify, currentWeight, WeightUnitToStringAbbreviation[weightUnit])));
 
-                            try
+                            if (_lastWeightSentToAcumatica != currentWeight)
                             {
-                                if (_lastWeightSentToAcumatica != currentWeight)
+                                if (_screen != null || LoginToAcumatica())
                                 {
-                                    if (_screen != null || LoginToAcumatica())
-                                    {
-                                        UpdateWeight(Properties.Settings.Default.ScaleID, currentWeight);
-                                        _lastWeightSentToAcumatica = currentWeight;
-                                    }
+                                    UpdateWeight(Properties.Settings.Default.ScaleID, currentWeight);
+                                    _lastWeightSentToAcumatica = currentWeight;
                                 }
-                            }
-                            catch (Exception ex)
-                            {
-                                // Assume the server went offline or our session got lost - new login will be attempted in next iteration
-                                _progress.Report(new MonitorMessage(String.Format(Strings.ScaleWeightError, ex.Message), MonitorMessage.MonitorStates.Error));
-                                _screen = null;
-                                System.Threading.Thread.Sleep(Properties.Settings.Default.ErrorWaitInterval);
                             }
                         }
 
                         System.Threading.Thread.Sleep(Properties.Settings.Default.ScaleReadInterval);
                     }
-                }
-                catch (Exception ex)
-                {
-                    ex = ex;
+                    catch (Exception ex)
+                    {
+                        // Assume the server went offline or our session got lost - new login will be attempted in next iteration
+                        _progress.Report(new MonitorMessage(String.Format(Strings.ScaleWeightError, ex.Message), MonitorMessage.MonitorStates.Error));
+                        _screen = null;
+                        System.Threading.Thread.Sleep(Properties.Settings.Default.ErrorWaitInterval);
+                    }
                 }
             });
         }
