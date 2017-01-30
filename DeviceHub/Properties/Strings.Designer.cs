@@ -286,6 +286,15 @@ namespace Acumatica.DeviceHub.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Scale requires calibration..
+        /// </summary>
+        internal static string ScaleCalibrationError {
+            get {
+                return ResourceManager.GetString("ScaleCalibrationError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to No scale configured..
         /// </summary>
         internal static string ScaleConfigurationMissingWarning {
@@ -304,6 +313,15 @@ namespace Acumatica.DeviceHub.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Weight exceeds scale capacity..
+        /// </summary>
+        internal static string ScaleOverweightError {
+            get {
+                return ResourceManager.GetString("ScaleOverweightError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to An error occured while updating the scale weight: {0}.
         /// </summary>
         internal static string ScaleWeightError {
@@ -313,7 +331,7 @@ namespace Acumatica.DeviceHub.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Scale weight: {0}.
+        ///   Looks up a localized string similar to Scale weight: {0} {1}.
         /// </summary>
         internal static string ScaleWeightNotify {
             get {
