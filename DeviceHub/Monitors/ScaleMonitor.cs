@@ -131,7 +131,7 @@ namespace Acumatica.DeviceHub
                             {
                                 if (_screen != null || LoginToAcumatica())
                                 {
-                                    UpdateWeight(Properties.Settings.Default.ScaleID, currentWeight);
+                                    UpdateWeight(Properties.Settings.Default.ScaleID, ConvertWeightToKilogram(currentWeight, weightUnit));
                                     _lastWeightSentToAcumatica = currentWeight;
                                 }
                             }
@@ -260,6 +260,26 @@ namespace Acumatica.DeviceHub
             };
             var result = _screen.Submit(ScaleScreen, commands);
             _progress.Report(new MonitorMessage(String.Format(Strings.UpdateScaleWeightSuccessNotify, scaleID), MonitorMessage.MonitorStates.Ok));
+        }
+
+        private decimal ConvertWeightToKilogram(decimal weight, WeightUnits weightUnit)
+        {
+            return weight / new Dictionary<WeightUnits, decimal>()
+            {
+                { WeightUnits.None, 0m },
+                { WeightUnits.Milligram, 1000000m },
+                { WeightUnits.Gram, 1000m },
+                { WeightUnits.Kilogram, 1m },
+                { WeightUnits.Carats, 5000m },
+                { WeightUnits.Taels, 26.4555m },
+                { WeightUnits.Grains, 15432.4m },
+                { WeightUnits.Pennyweights, 643.015m },
+                { WeightUnits.MetricTon, 0.001m },
+                { WeightUnits.AvoirTon, 0.000984207m },
+                { WeightUnits.TroyOunce, 32.1507m },
+                { WeightUnits.Ounce, 35.274m },
+                { WeightUnits.Pound, 2.20462m }
+            }[weightUnit];
         }
 
         private bool LoginToAcumatica()

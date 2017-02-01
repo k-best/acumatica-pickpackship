@@ -371,6 +371,15 @@ namespace PX.Objects.SO
             }
         }
 
+        protected virtual decimal ConvertKilogramToWeightUnit(decimal weight, string weightUnit)
+        {
+            return weight / new Dictionary<string, decimal>
+            {
+                { "KG", 1m },
+                { "LB", 0.453592m }
+            }[weightUnit.Trim().ToUpperInvariant()];
+        }
+
         protected virtual void ClearScreen(bool clearShipmentNbr)
         {
             if(clearShipmentNbr) this.Document.Current.ShipmentNbr = null;
@@ -626,9 +635,10 @@ namespace PX.Objects.SO
                     }
                     else
                     {
+                        decimal convertedWeight = ConvertKilogramToWeightUnit(scale.LastWeight.GetValueOrDefault(), Setup.Current.WeightUOM);
                         doc.Status = ScanStatuses.Information;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageComplete, scale.LastWeight.GetValueOrDefault(), Setup.Current.WeightUOM);
-                        SetCurrentPackageWeight(scale.LastWeight.GetValueOrDefault());
+                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageComplete, convertedWeight, Setup.Current.WeightUOM);
+                        SetCurrentPackageWeight(convertedWeight);
                         doc.CurrentPackageLineNbr = null;
                     }
                 }
