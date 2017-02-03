@@ -8,6 +8,7 @@
   <col name="ShipmentLabelsQueue" type="VarChar(10)" nullable="true" />
   <col name="UseScale" type="Bit" />
   <col name="ScaleID" type="VarChar(10)" nullable="true" />
+  <col name="MandatoryPackage" type="Bit" default="Zero" />
   <index name="PK_SOPickPackShipPrintSetup" clustered="true" primary="true" unique="true">
     <col name="CompanyID" />
     <col name="UserID" />

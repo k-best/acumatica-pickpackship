@@ -197,6 +197,9 @@
                 <px:PXCheckBox ID="PXCheckBox1" runat="server" DataField="UseScale" CommitChanges="true" />
                 <px:PXLayoutRule ID="PXLayoutRule6" runat="server" LabelsWidth="M" ControlSize="M" SuppressLabel="False"/>
                 <px:PXSelector ID="PXSelector1" runat="server" DataField="ScaleID" CommitChanges="true" AutoComplete="false" />
+				
+                <px:PXLayoutRule ID="PXLayoutRule7" runat="server" LabelsWidth="M" ControlSize="M" StartGroup="True" SuppressLabel="True" GroupCaption="Package"/>
+                <px:PXCheckBox ID="edMandatoryPackage" runat="server" DataField="MandatoryPackage" CommitChanges="true" />
             </Template>
         </px:PXFormView>
         <px:PXPanel ID="PXPanel2" runat="server" SkinID="Buttons">
