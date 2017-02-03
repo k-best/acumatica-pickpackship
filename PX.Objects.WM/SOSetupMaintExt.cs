@@ -8,7 +8,7 @@ namespace PX.Objects.WM
     {
         protected virtual void SOSetup_RowSelected(PXCache sender, PXRowSelectedEventArgs e)
         {
-            SOSetup setup = (SOSetup)e.Row;
+            SOSetup setup = e.Row as SOSetup;
 
             if (setup != null && !PXAccess.FeatureInstalled<FeaturesSet.warehouseLocation>())
             {
