@@ -7,8 +7,10 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Drawing.Printing;
+using System.IO;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web.Services.Protocols;
@@ -62,13 +64,18 @@ namespace Acumatica.DeviceHub
 
         private void InitUsbScaleList()
         {
+            const short scaleDataReport = 32;
             var scales = new List<ScaleDevice>();
             scales.Add(new ScaleDevice { Description = "<Not configured>" });
-            foreach(var device in HidDevices.Enumerate())
+            foreach (var device in HidDevices.Enumerate())
             {
+                // Keep only devices supporting Scale Data Report
+                if (!device.Capabilities.Usage.Equals(scaleDataReport))
+                    continue;
+
                 scales.Add(new ScaleDevice
                 {
-                    Description = device.Description,
+                    Description = GetDeviceDescriptionFromDeviceDriver(device),
                     VendorId = device.Attributes.VendorId,
                     ProductId = device.Attributes.ProductId
                 });
@@ -77,9 +84,13 @@ namespace Acumatica.DeviceHub
             var currentDevice = scales.FirstOrDefault(s => s.VendorId == Properties.Settings.Default.ScaleDeviceVendorId && s.ProductId == Properties.Settings.Default.ScaleDeviceProductId);
             if (currentDevice == null)
             {
+                int vendorId = Properties.Settings.Default.ScaleDeviceVendorId;
+                int productId = Properties.Settings.Default.ScaleDeviceProductId;
+                string description = GetDeviceDescriptionFromStaticList(vendorId, productId);
+
                 currentDevice = new ScaleDevice
                 {
-                    Description = String.Format(Strings.UnknownDeviceDescription, Properties.Settings.Default.ScaleDeviceVendorId, Properties.Settings.Default.ScaleDeviceProductId),
+                    Description = description != null ? description : String.Format(Strings.UnknownDeviceDescription, vendorId, productId),
                     VendorId = Properties.Settings.Default.ScaleDeviceVendorId,
                     ProductId = Properties.Settings.Default.ScaleDeviceProductId
                 };
@@ -89,6 +100,118 @@ namespace Acumatica.DeviceHub
             scalesDropDown.DisplayMember = "Description";
             scalesDropDown.DataSource = scales;
             scalesDropDown.SelectedItem = currentDevice;
+        }
+
+        private string GetDeviceDescriptionFromDeviceDriver(HidDevice device)
+        {
+            const string nullChar = "\0";
+            const string vendorProductSeparator = " - ";
+            string vendor = String.Empty;
+            string product = String.Empty;
+            byte[] stringBuffer;
+
+            // Read vendor
+            device.ReadManufacturer(out stringBuffer);
+
+            if (stringBuffer != null && stringBuffer.Length > nullChar.Length)
+            {
+                vendor = Encoding.Unicode.GetString(stringBuffer);
+
+                if (vendor.Contains(nullChar))
+                {
+                    vendor = vendor.Remove(vendor.IndexOf(nullChar));
+                }
+            }
+
+            // Read product
+            device.ReadProduct(out stringBuffer);
+
+            if (stringBuffer != null && stringBuffer.Length > nullChar.Length)
+            {
+                product = Encoding.Unicode.GetString(stringBuffer);
+
+                if (product.Contains(nullChar))
+                {
+                    product = product.Remove(product.IndexOf(nullChar));
+                }
+            }
+
+            // Concat manufacturer and product
+            bool isManufacturer = !String.IsNullOrWhiteSpace(vendor);
+            bool isProduct = !String.IsNullOrWhiteSpace(product);
+
+            if (isManufacturer && isProduct)
+            {
+                return String.Concat(vendor, vendorProductSeparator, product);
+            }
+            else if (isManufacturer && !isProduct)
+            {
+                return vendor;
+            }
+            else if (!isManufacturer && isProduct)
+            {
+                return product;
+            }
+            else
+            {
+                // Fallback to static list description
+                string description = GetDeviceDescriptionFromStaticList(device.Attributes.VendorId, device.Attributes.ProductId);
+
+                if (description != null)
+                {
+                    return description;
+                }
+                else
+                {
+                    // Fallback to generic description
+                    return device.Description;
+                }
+            }
+        }
+
+        private string GetDeviceDescriptionFromStaticList(int vendorId, int productId)
+        {
+            const string tab = "\t";
+            const string doubleSpace = "  ";
+            const string hexadecimalFormat = "X";
+            const string namespaceSeparator = ".";
+            const string usbIdList = "usb.ids";
+            const string vendorProductSeparator = " - ";
+            string line;
+            string vendor;
+
+            // Convert ids to hexadecimal
+            string vendorIdHex = vendorId.ToString(hexadecimalFormat);
+            string productIdHex = productId.ToString(hexadecimalFormat);
+
+            // Read from static list
+            StreamReader streamReader = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream(String.Concat(GetType().Namespace, namespaceSeparator, usbIdList)));
+
+            // Search vendor
+            while ((line = streamReader.ReadLine()) != null)
+            {
+                // Vendor found
+                if (line.StartsWith(vendorIdHex))
+                {
+                    vendor = line.Substring(String.Concat(vendorIdHex, doubleSpace).Length);
+                    string productLine = String.Concat(tab, productIdHex, doubleSpace).ToUpperInvariant();
+
+                    // Search product
+                    while ((line = streamReader.ReadLine()) != null && line.StartsWith(tab))
+                    {
+                        // Product found
+                        if (line.ToUpperInvariant().StartsWith(productLine))
+                        {
+                            return String.Concat(vendor, vendorProductSeparator, line.Substring(productLine.Length));
+                        }
+                    }
+
+                    // Product not found
+                    break;
+                }
+            };
+
+            return null;
         }
 
         private void SetControlsState()
