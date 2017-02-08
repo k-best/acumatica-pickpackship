@@ -192,17 +192,24 @@
   <data name="QueueNameMissingPrompt" xml:space="preserve">
     <value>Please give a name to this queue.</value>
   </data>
+  <data name="ScaleCalibrationError" xml:space="preserve">
+    <value>Scale requires calibration.</value>
+  </data>
   <data name="ScaleConfigurationMissingWarning" xml:space="preserve">
     <value>No scale configured.</value>
   </data>
   <data name="ScaleConnectionError" xml:space="preserve">
     <value>Failed to connect to scale.</value>
   </data>
+  <data name="ScaleOverweightError" xml:space="preserve">
+    <value>Weight exceeds scale capacity.</value>
+    <comment> </comment>
+  </data>
   <data name="ScaleWeightError" xml:space="preserve">
     <value>An error occured while updating the scale weight: {0}</value>
   </data>
   <data name="ScaleWeightNotify" xml:space="preserve">
-    <value>Scale weight: {0}</value>
+    <value>Scale weight: {0} {1}</value>
   </data>
   <data name="ScreenWebServiceConnexionError" xml:space="preserve">
     <value>Error connecting to Acumatica: {0}</value>
