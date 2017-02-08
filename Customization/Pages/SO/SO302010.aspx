@@ -40,6 +40,20 @@
 	    };
 
 	    window.addEventListener('load', function () { px_callback.addHandler(ActionCallback); });
+		
+		window.addEventListener('keydown', function(e) {
+			var KEYCODE_B = 66;
+			var key = e.keyCode ? e.keyCode : e.which;
+			
+			// STX non printable character, transcoded as Ctl-B in keydown event
+			if(e.ctrlKey && key === KEYCODE_B) {
+				// Focus barcode UI field when receiving barcode prefix (STX character)
+				px_alls["edBarcode"].focus();
+				
+				// Prevent IE from firing open bookmark shortcut (Ctl-B)
+				e.preventDefault();
+			}
+		});
 	</script>
 
 	<px:PXDataSource ID="ds" runat="server" Visible="True" Width="100%" TypeName="PX.Objects.SO.PickPackShip" PrimaryView="Document">
