@@ -426,9 +426,10 @@ namespace PX.Objects.SO
 
         protected virtual bool IsCurrentPackageRequiredAndMissing()
         {
-            // We don't force users to use them but as soon as they have added one, they have to continue for all their scans.
-            // Maybe in the future we can add a setting in SO to control whether this is required or not instead.
-            return Packages.SelectSingle() != null && this.Document.Current.CurrentPackageLineNbr == null;
+            // If package is mandatory or if package has been added and current package isn't selected.
+            return ((UserSetup.Current.MandatoryPackage.HasValue && UserSetup.Current.MandatoryPackage.Value) ||
+                    Packages.SelectSingle() != null) &&
+                   this.Document.Current.CurrentPackageLineNbr == null;
         }
 
         protected virtual void ProcessItemBarcode(string barcode)
@@ -616,7 +617,7 @@ namespace PX.Objects.SO
             if (doc.CurrentPackageLineNbr == null)
             {
                 doc.Status = ScanStatuses.Error;
-                doc.Message = WM.Messages.PackageMissingCurrent;
+                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageMissingCurrent);
             }
             else
             {
