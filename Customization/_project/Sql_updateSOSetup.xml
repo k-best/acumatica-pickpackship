@@ -1,0 +1,5 @@
+﻿<Sql TableName="updateSOSetup" CustomScript="#CDATA">
+    <CDATA name="CustomScript"><![CDATA[IF NOT EXISTS(SELECT * FROM Sys.Columns WHERE Name = N'UsePickLocation' and Object_ID = Object_ID(N'SOSetup'))
+alter table SOSetup add UsePickLocation bit not null default 0
+go]]></CDATA>
+</Sql>
