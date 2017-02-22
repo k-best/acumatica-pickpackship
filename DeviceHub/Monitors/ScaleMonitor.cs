@@ -154,6 +154,7 @@ namespace Acumatica.DeviceHub
         {
             const int decimalBase = 10;
             const int readTimeout = 250;
+            const byte eightBits = 8;
             decimal weight = 0;
             weightUnit = WeightUnits.None;
 
@@ -166,7 +167,7 @@ namespace Acumatica.DeviceHub
 
                 // Unpack weight word
                 int lowOrderbyte = data[(int)ScaleData.DataWeightLSB];
-                int highOrderbyte = data[(int)ScaleData.DataWeightMSB] << sizeof(byte);
+                int highOrderbyte = data[(int)ScaleData.DataWeightMSB] << eightBits;
 
                 // Data scaling uses a signed byte value
                 sbyte dataScaling = (sbyte)data[(int)ScaleData.DataScaling];
