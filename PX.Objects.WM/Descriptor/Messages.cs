@@ -46,7 +46,7 @@ namespace PX.Objects.WM
 
         #region Location
         public const string LocationPrompt = "Please scan location.";
-        public const string LocationInvalid = "Location {0} bnot found in database.";
+        public const string LocationInvalid = "Location {0} not found in database.";
 
         #endregion
 
