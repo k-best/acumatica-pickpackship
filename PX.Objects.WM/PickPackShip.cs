@@ -182,9 +182,13 @@ namespace PX.Objects.SO
         protected IEnumerable splits()
         {
             //We only use this view as a container for picked lot/serial numbers. We don't care about what's in the DB for this shipment.
-            foreach(var row in Splits.Cache.Cached)
+            foreach(SOShipLineSplit row in Splits.Cache.Cached)
             {
-                yield return row;
+                if (Shipment.Current != null && row.ShipmentNbr == Shipment.Current.ShipmentNbr &&
+                    Transactions.Current != null && row.LineNbr == Transactions.Current.LineNbr)
+                {
+                    yield return row;
+                }
             }
         }
 
