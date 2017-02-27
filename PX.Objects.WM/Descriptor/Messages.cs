@@ -9,7 +9,6 @@ namespace PX.Objects.WM
     {
         public const string Add = "Add";
         public const string Remove = "Remove";
-        public const string Weight = "Weight";
 
         public const string MissingFileIdError = "Print job has no 'Report ID' or 'FILEID' parameter defined.";
         
@@ -20,7 +19,7 @@ namespace PX.Objects.WM
 
         #region Box
         public const string BoxAdded = "Box {0} added to the shipment. Ready to pick items.";
-        public const string BoxMissing = "Box {0} cannot be found in the system.";
+        public const string BoxMissing = "Box {0} not found in database.";
         #endregion
 
         #region Command
@@ -37,22 +36,24 @@ namespace PX.Objects.WM
         #region Lot/Serial
         public const string LotInvalidQuantity = "Lot/serial {0} not found in sufficient quantity on shipment.";
         public const string LotMissing = "Lot/serial {0} not found in database.";
-        public const string LotMissingWithQuantity = "The system was not able to locate lot/serial number {0} (Quantity: {1}). Please check the shipment.";
         public const string LotNotSupported = "Lot/serial numbers that are assigned when used and which require tracking of expiration date are not supported with this tool.";
-        public const string LotScanPrompt = "Please scan lot/serial number for item {0}.";
+        public const string LotScanPrompt = "Please scan lot/serial number.";
         public const string LotSplitQuantityError = "Unexpected split quantity for lot/serial {0} (Quantity: {1}).";
         public const string LotUniquenessError = "More than one lot/serial entry was found. This is not yet supported, please search by Inventory ID.";
-
         public const string SerialDuplicateError = "Serial {0} has already been picked.";
         public const string SerialInvalidQuantity = "Quantity for serial numbered items must be 1.";
         #endregion
 
+        #region Location
+        public const string LocationPrompt = "Please scan location.";
+        public const string LocationInvalid = "Location {0} not found in database.";
+
+        #endregion
+
         #region Inventory
         public const string InventoryAdded = "Added {0} x {1}.";
-        public const string InventoryAddedWithBarcode = "Added {0} x {1} ({2}).";
         public const string InventoryRemoved = "Removed {0} x {1}.";
-        public const string InventoryRemovedWithBarcode = "Removed {0} x {1} ({2}).";
-        public const string InventoryMissing = "Item {0} not found on shipment or in current package.";
+        public const string InventoryMissing = "Item not found on shipment or in current package.";
         #endregion
 
         #region Package
