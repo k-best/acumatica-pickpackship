@@ -8,7 +8,6 @@ namespace PX.Objects.WM
     public static class Messages
     {
         public const string Add = "Add";
-        public const string Location = "Location";
         public const string Remove = "Remove";
         public const string Weight = "Weight";
 
@@ -35,10 +34,6 @@ namespace PX.Objects.WM
         public const string CommandAccessRightsError = "Insufficient access rights to perform this command.";
         #endregion
 
-        #region Location
-        public const string LocationPrompt = "Please scan a valid location.";
-        #endregion
-
         #region Lot/Serial
         public const string LotInvalidQuantity = "Lot/serial {0} not found in sufficient quantity on shipment.";
         public const string LotMissing = "Lot/serial {0} not found in database.";
@@ -54,14 +49,9 @@ namespace PX.Objects.WM
 
         #region Inventory
         public const string InventoryAdded = "Added {0} x {1}.";
-        public const string InventoryAddedWithLocation = "Added {0} x {1} (location: {2}).";
         public const string InventoryAddedWithBarcode = "Added {0} x {1} ({2}).";
-        public const string InventoryAddedWithBarcodeAndLocation = "Added {0} x {1} ({2} location: {3}).";
-        public const string InventoryLocation = "Please enter location for item {0}.";
         public const string InventoryRemoved = "Removed {0} x {1}.";
-        public const string InventoryRemovedWithLocation = "Removed {0} x {1} (location: {2}).";
         public const string InventoryRemovedWithBarcode = "Removed {0} x {1} ({2}).";
-        public const string InventoryRemovedWithBarcodeAndLocation = "Removed {0} x {1} ({2} location: {3}).";
         public const string InventoryMissing = "Item {0} not found on shipment or in current package.";
         #endregion
 
