@@ -47,7 +47,7 @@ namespace PX.Objects.SO
         public const string PackageComplete = "PC";
         public const string QuickPackage = "PQ";
     }
-
+    
     public class PickPackInfo : IBqlTable
     {
         public abstract class shipmentNbr : IBqlField { }
@@ -136,7 +136,6 @@ namespace PX.Objects.SO
         public const double ScaleWeightValiditySeconds = 30;
 
         public PXSetup<INSetup> Setup;
-        public PXSetup<SOSetup> SalesOrderSetup;
         public PXSelect<SOPickPackShipUserSetup, Where<SOPickPackShipUserSetup.userID, Equal<Current<AccessInfo.userID>>>> UserSetup;
         public PXCancel<PickPackInfo> Cancel;
         public PXFilter<PickPackInfo> Document;
@@ -151,7 +150,7 @@ namespace PX.Objects.SO
             //TODO: Remove when licence handling has been implemented
             if (DateTime.Now > new DateTime(2017, 4, 30))
             {
-                throw new PXNotEnoughRightsException(PXCacheRights.Denied, "Pick, Pack and Ship: Evaluation period expired.");
+                throw new PXException("Pick, Pack and Ship: Evaluation period expired.");
             }
         }
 
@@ -523,19 +522,7 @@ namespace PX.Objects.SO
 
         protected virtual bool IsLocationRequired()
         {
-            bool isPickLocation = false;
-
-            if (SalesOrderSetup.Current != null && PXAccess.FeatureInstalled<FeaturesSet.warehouseLocation>())
-            {
-                SOSetupExt setupExt = PXCache<SOSetup>.GetExtension<SOSetupExt>(SalesOrderSetup.Current);
-
-                if (setupExt != null)
-                {
-                    isPickLocation = (setupExt.UsePickLocation.HasValue ? setupExt.UsePickLocation.Value : false);
-                }
-            }
-
-            return isPickLocation;
+			return PXAccess.FeatureInstalled<FeaturesSet.warehouseLocation>();
         }
 
         protected virtual bool IsCurrentPackageRequiredAndMissing()
