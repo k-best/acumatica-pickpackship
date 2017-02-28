@@ -22,6 +22,13 @@ namespace PX.Objects.SO
     {
         public const string Add = "A";
         public const string Remove = "R";
+    }
+
+    public static class ScanStates
+    {
+        public const string Item = "I";
+        public const string LotSerialNumber = "S";
+        public const string Location = "L";
         public const string Weight = "W";
     }
 
@@ -40,7 +47,7 @@ namespace PX.Objects.SO
         public const string PackageComplete = "PC";
         public const string QuickPackage = "PQ";
     }
-
+    
     public class PickPackInfo : IBqlTable
     {
         public abstract class shipmentNbr : IBqlField { }
@@ -70,10 +77,16 @@ namespace PX.Objects.SO
         
         public abstract class scanMode : IBqlField { }
         [PXString(1, IsFixed = true)]
-        [PXStringList(new[] { ScanModes.Add, ScanModes.Remove, ScanModes.Weight }, new[] { PX.Objects.WM.Messages.Add, PX.Objects.WM.Messages.Remove, PX.Objects.WM.Messages.Weight })]
+        [PXStringList(new[] { ScanModes.Add, ScanModes.Remove }, new[] { PX.Objects.WM.Messages.Add, PX.Objects.WM.Messages.Remove })]
         [PXDefault(ScanModes.Add)]
         [PXUIField(DisplayName = "Scan Mode")]
         public virtual string ScanMode { get; set; }
+
+        public abstract class scanState : IBqlField { }
+        [PXString(1, IsFixed = true)]
+        [PXDefault(ScanStates.Item)]
+        [PXUIField(DisplayName = "Scan State")]
+        public virtual string ScanState { get; set; }
 
         public abstract class lotSerialSearch : IBqlField { }
         [PXBool]
@@ -92,6 +105,10 @@ namespace PX.Objects.SO
         public abstract class currentLocationID : IBqlField { }
         [Location]
         public virtual int? CurrentLocationID { get; set; }
+
+        public abstract class currentLotSerialNumber : IBqlField { }
+        [PXString]
+        public virtual string CurrentLotSerialNumber { get; set; }
 
         public abstract class currentPackageLineNbr : IBqlField { }
         [PXInt]
@@ -127,6 +144,15 @@ namespace PX.Objects.SO
         public PXSelect<SOShipLineSplit, Where<SOShipLineSplit.shipmentNbr, Equal<Current<SOShipLinePick.shipmentNbr>>, And<SOShipLineSplit.lineNbr, Equal<Current<SOShipLinePick.lineNbr>>>>> Splits;
         public PXSelect<SOPackageDetailPick, Where<SOPackageDetailPick.shipmentNbr, Equal<Current<SOShipment.shipmentNbr>>>> Packages;
         public PXSelect<SOPackageDetailSplit, Where<SOPackageDetailSplit.shipmentNbr, Equal<Current<SOPackageDetailPick.shipmentNbr>>, And<SOPackageDetailSplit.lineNbr, Equal<Current<SOPackageDetailPick.lineNbr>>>>> PackageSplits;
+
+        public PickPackShip()
+        {
+            //TODO: Remove when licence handling has been implemented
+            if (DateTime.Now > new DateTime(2017, 4, 30))
+            {
+                throw new PXException("Pick, Pack and Ship: Evaluation period expired.");
+            }
+        }
 
         protected void PickPackInfo_RowSelected(PXCache sender, PXRowSelectedEventArgs e)
         {
@@ -182,9 +208,13 @@ namespace PX.Objects.SO
         protected IEnumerable splits()
         {
             //We only use this view as a container for picked lot/serial numbers. We don't care about what's in the DB for this shipment.
-            foreach(var row in Splits.Cache.Cached)
+            foreach(SOShipLineSplit row in Splits.Cache.Cached)
             {
-                yield return row;
+                if (Shipment.Current != null && row.ShipmentNbr == Shipment.Current.ShipmentNbr &&
+                    Transactions.Current != null && row.LineNbr == Transactions.Current.LineNbr)
+                {
+                    yield return row;
+                }
             }
         }
 
@@ -234,20 +264,25 @@ namespace PX.Objects.SO
             }
             else
             {
-                switch (doc.ScanMode)
+                switch (doc.ScanState)
                 {
-                    case ScanModes.Add:
-                    case ScanModes.Remove:
+                    case ScanStates.Item:
                         if (doc.Barcode[0] == ScanCommands.CommandChar)
                         {
                             ProcessCommands(doc.Barcode);
                         }
                         else
                         {
-                            ProcessBarcode(doc.Barcode);
+                            ProcessItemBarcode(doc.Barcode);
                         }
                         break;
-                    case ScanModes.Weight:
+                    case ScanStates.LotSerialNumber:
+                        ProcessLotSerialBarcode(doc.Barcode);
+                        break;
+                    case ScanStates.Location:
+                        ProcessLocationBarcode(doc.Barcode);
+                        break;
+                    case ScanStates.Weight:
                         ProcessWeight(doc.Barcode);
                         break;
                 }
@@ -273,7 +308,7 @@ namespace PX.Objects.SO
 
                     if (commands.Length > 2)
                     {
-                        ProcessBarcode(commands[2]);
+                        ProcessItemBarcode(commands[2]);
                     }
                 }
                 else
@@ -289,12 +324,12 @@ namespace PX.Objects.SO
                     case ScanCommands.Add:
                         this.Document.Current.ScanMode = ScanModes.Add;
                         doc.Status = ScanStatuses.Information;
-                        doc.Message = WM.Messages.CommandAdd; //TODO: Think of a better message.
+                        doc.Message = WM.Messages.CommandAdd;
                         break;
                     case ScanCommands.Remove:
                         this.Document.Current.ScanMode = ScanModes.Remove;
                         doc.Status = ScanStatuses.Information;
-                        doc.Message = WM.Messages.CommandRemove;  //TODO: Think of a better message.
+                        doc.Message = WM.Messages.CommandRemove;
                         break;
                     case ScanCommands.Item:
                         this.Document.Current.LotSerialSearch = false;
@@ -362,7 +397,7 @@ namespace PX.Objects.SO
                 doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageComplete, weight, Setup.Current.WeightUOM);
                 SetCurrentPackageWeight(weight);
                 doc.CurrentPackageLineNbr = null;
-                doc.ScanMode = ScanModes.Add;
+                doc.ScanState = ScanStates.Item;
             }
             else
             {
@@ -386,6 +421,7 @@ namespace PX.Objects.SO
             this.Document.Current.CurrentInventoryID = null;
             this.Document.Current.CurrentSubID = null;
             this.Document.Current.CurrentLocationID = null;
+            this.Document.Current.CurrentLotSerialNumber = null;
             this.Document.Current.CurrentPackageLineNbr = null;
             this.Transactions.Cache.Clear();
             this.Splits.Cache.Clear();
@@ -393,19 +429,9 @@ namespace PX.Objects.SO
             this.PackageSplits.Cache.Clear();
         }
 
-        protected virtual void ProcessBarcode(string barcode)
+        protected virtual void ProcessItemBarcode(string barcode)
         {
             var doc = this.Document.Current;
-
-            if (doc.LotSerialSearch == true)
-            {
-                if (!SetCurrentInventoryIDForLotSerial(barcode))
-                {
-                    doc.Status = ScanStatuses.Error;
-                    doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotMissing, barcode);
-                    return;
-                }
-            }
 
             if (IsCurrentPackageRequiredAndMissing())
             {
@@ -414,14 +440,89 @@ namespace PX.Objects.SO
                 return;
             }
 
-            if (doc.CurrentInventoryID == null)
+            if (doc.LotSerialSearch == true)
             {
-                ProcessItemBarcode(barcode);
+                if (!SetCurrentInventoryIDByLotSerial(barcode))
+                {
+                    doc.Status = ScanStatuses.Error;
+                    doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotMissing, barcode);
+                    return;
+                }
             }
             else
             {
-                ProcessLotSerialBarcode(barcode);
+                bool lotSerialNumbered = false;
+                if(!SetCurrentInventoryIDByItemBarcode(barcode, out lotSerialNumbered))
+                {
+                    doc.Status = ScanStatuses.Error;
+                    doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.BarcodeMissing, barcode);
+                    return;
+                }
+
+                if(lotSerialNumbered)
+                {
+                    doc.Status = ScanStatuses.Scan;
+                    doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.LotScanPrompt);
+                    doc.ScanState = ScanStates.LotSerialNumber;
+                    return;
+                }
             }
+            
+            if(IsLocationRequired())
+            {
+                doc.Status = ScanStatuses.Scan;
+                doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.LocationPrompt);
+                doc.ScanState = ScanStates.Location;
+                return;
+            }
+
+            ProcessPick();
+        }
+
+        protected virtual void ProcessLotSerialBarcode(string barcode)
+        {
+            var doc = this.Document.Current;
+
+            //TODO: For items with lot/serial assigned at INLotSerAssign.WhenReceived, we could validate right away if 
+            //this lot/serial number exist. We could also verify against validation mask for lot/serial which are INLotSerAssign.WhenUsed.
+            doc.CurrentLotSerialNumber = barcode;
+
+            //TODO: This block of code is identical to the end of ProcessItemBarcode - would state machine transition help?
+            if (IsLocationRequired())
+            {
+                doc.Status = ScanStatuses.Scan;
+                doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.LocationPrompt);
+                doc.ScanState = ScanStates.Location;
+                return;
+            }
+
+            ProcessPick();
+        }
+
+        protected virtual void ProcessLocationBarcode(string barcode)
+        {
+            var doc = this.Document.Current;
+
+            INLocation location = PXSelect<INLocation,
+                                 Where<INLocation.siteID, Equal<Current<SOShipment.siteID>>,
+                                 And<INLocation.locationCD, Equal<Required<INLocation.locationCD>>>>>.Select(this, barcode);
+
+            if(location == null)
+            {
+                doc.Status = ScanStatuses.Error;
+                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LocationInvalid, barcode);
+                return;
+            }
+
+            doc.CurrentLocationID = location.LocationID;
+
+            //TODO: This block of code is identical to the end of ProcessItemBarcode and ProcessLotSerialBarcode
+            ProcessPick();
+        }
+
+        protected virtual bool IsLocationRequired()
+        {
+			return PXAccess.FeatureInstalled<FeaturesSet.warehouseLocation>();
         }
 
         protected virtual bool IsCurrentPackageRequiredAndMissing()
@@ -432,7 +533,7 @@ namespace PX.Objects.SO
                    this.Document.Current.CurrentPackageLineNbr == null;
         }
 
-        protected virtual void ProcessItemBarcode(string barcode)
+        protected virtual bool SetCurrentInventoryIDByItemBarcode(string barcode, out bool lotSerialNumbered)
         {
             var doc = this.Document.Current;
             var rec = (PXResult<INItemXRef, InventoryItem, INLotSerClass, INSubItem>)
@@ -450,10 +551,11 @@ namespace PX.Objects.SO
                                             And<INItemXRef.alternateType, Equal<INAlternateType.barcode>>>>
                             .SelectSingleBound(this, new object[] { doc }, barcode);
 
+            lotSerialNumbered = false;
+
             if (rec == null)
             {
-                doc.Status = ScanStatuses.Error;
-                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.BarcodeMissing, barcode);
+                return false;
             }
             else
             {
@@ -461,117 +563,55 @@ namespace PX.Objects.SO
                 var sub = (INSubItem)rec;
                 var lsclass = (INLotSerClass)rec;
 
-                if (lsclass.LotSerTrack != INLotSerTrack.NotNumbered &&
-                    (lsclass.LotSerIssueMethod == INLotSerIssueMethod.UserEnterable ||
-                    (lsclass.LotSerAssign == INLotSerAssign.WhenUsed && lsclass.AutoNextNbr == false)))
+                if (lsclass.LotSerTrack != INLotSerTrack.NotNumbered)
                 {
                     if (lsclass.LotSerAssign == INLotSerAssign.WhenUsed && lsclass.LotSerTrackExpiration == true)
                     {
-                        //TODO: Implement support for this.
+                        //TODO: Implement support for this? Not even clear if Acumatica supports that.
                         throw new NotImplementedException(WM.Messages.LotNotSupported);
                     }
 
-                    doc.CurrentInventoryID = inventoryItem.InventoryID;
-                    doc.CurrentSubID = sub.SubItemID;
-                    doc.Status = ScanStatuses.Scan;
-                    doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotScanPrompt, inventoryItem.InventoryCD.TrimEnd());
+                    if(inventoryItem.BaseUnit != inventoryItem.SalesUnit)
+                    {
+                        //TODO: Implement support for this by prompting user to enter as many serial/lot as what's included in the SaleUnit.
+                        throw new NotImplementedException("Items which are lot/serial tracked must use the same base and sale unit of measures.");
+                    }
+
+                    lotSerialNumbered = true;
                 }
-                else
-                {
-                    if (Document.Current.ScanMode == ScanModes.Add && AddPick(inventoryItem.InventoryID, sub.SubItemID, Document.Current.Quantity, null))
-                    {
-                        doc.Status = ScanStatuses.Scan;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryAdded, Document.Current.Quantity, inventoryItem.InventoryCD.TrimEnd());
-                        doc.Quantity = 1;
-                    }
-                    else if (Document.Current.ScanMode == ScanModes.Remove && RemovePick(inventoryItem.InventoryID, sub.SubItemID, Document.Current.Quantity, null))
-                    {
-                        doc.Status = ScanStatuses.Scan;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryRemoved, Document.Current.Quantity, inventoryItem.InventoryCD.TrimEnd());
-                        doc.Quantity = 1;
-                        doc.ScanMode = ScanModes.Add;
-                    }
-                    else
-                    {
-                        doc.Status = ScanStatuses.Error;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryMissing, inventoryItem.InventoryCD.TrimEnd());
-                    }
-                }
+
+                doc.CurrentInventoryID = inventoryItem.InventoryID;
+                doc.CurrentSubID = sub.SubItemID;
+                return true;
             }
         }
 
-        protected virtual void ProcessLotSerialBarcode(string barcode)
+        protected virtual void ProcessPick()
         {
             var doc = this.Document.Current;
-            var rec = (PXResult<InventoryItem, INLotSerClass>)PXSelectJoin<InventoryItem,
-                InnerJoin<INLotSerClass,
-                    On<InventoryItem.lotSerClassID, Equal<INLotSerClass.lotSerClassID>>>,
-                Where<InventoryItem.inventoryID, Equal<Current<PickPackInfo.currentInventoryID>>>>
-                .SelectSingleBound(this, new object[] { doc });
-            
-            if(rec != null)
-            {
-                var inventoryItem = (InventoryItem)rec;
-                var lsclass = (INLotSerClass)rec;
 
-                if (Document.Current.ScanMode == ScanModes.Add)
-                {
-                    if(lsclass.LotSerTrack == INLotSerTrack.SerialNumbered && doc.Quantity > 1)
-                    {
-                        doc.Status = ScanStatuses.Error;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.SerialInvalidQuantity);
-                    }
-                    else if (lsclass.LotSerTrack == INLotSerTrack.SerialNumbered && GetTotalQuantityPickedForLotSerial(doc.CurrentInventoryID, doc.CurrentSubID, barcode) > 0)
-                    {
-                        doc.Status = ScanStatuses.Error;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.SerialDuplicateError, barcode);
-                    }
-                    else if (AddPick(doc.CurrentInventoryID, doc.CurrentSubID, Document.Current.Quantity, barcode))
-                    {
-                        doc.Status = ScanStatuses.Scan;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryAddedWithBarcode, Document.Current.Quantity, inventoryItem.InventoryCD.TrimEnd(), barcode);
-                        doc.Quantity = 1;
-                    }
-                    else
-                    {
-                        doc.Status = ScanStatuses.Error;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryMissing, inventoryItem.InventoryCD.TrimEnd());
-                    }
-                }
-                else if (Document.Current.ScanMode == ScanModes.Remove)
-                {
-                    if (GetTotalQuantityPickedForLotSerial(doc.CurrentInventoryID, doc.CurrentSubID, barcode) < doc.Quantity)
-                    {
-                        doc.Status = ScanStatuses.Error;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotInvalidQuantity, barcode);
-                    }
-                    else if (RemovePick(doc.CurrentInventoryID, doc.CurrentSubID, Document.Current.Quantity, barcode))
-                    {
-                        doc.Status = ScanStatuses.Scan;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryRemovedWithBarcode, Document.Current.Quantity, inventoryItem.InventoryCD.TrimEnd(), barcode);
-                        doc.Quantity = 1;
-                        doc.ScanMode = ScanModes.Add;
-                    }
-                    else
-                    {
-                        // We will technically never hit this code, since we pre-validate how much was been picked before calling RemovePick.
-                        System.Diagnostics.Debug.Assert(false, "This condition should have been validated by GetTotalQuantityPickedForLotSerial");
-                        doc.Status = ScanStatuses.Error;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryMissing, inventoryItem.InventoryCD.TrimEnd());
-                    }
-                }
+            if (Document.Current.ScanMode == ScanModes.Add && AddPick(doc.CurrentInventoryID, doc.CurrentSubID, doc.Quantity, doc.CurrentLocationID, doc.CurrentLotSerialNumber))
+            {
+                doc.Status = ScanStatuses.Scan;
+                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryAdded, Document.Current.Quantity, ((InventoryItem)PXSelectorAttribute.Select<PickPackInfo.currentInventoryID>(this.Document.Cache, doc)).InventoryCD.TrimEnd());
+                doc.Quantity = 1;
+                doc.ScanState = ScanStates.Item;
+            }
+            else if (Document.Current.ScanMode == ScanModes.Remove && RemovePick(doc.CurrentInventoryID, doc.CurrentSubID, doc.Quantity, doc.CurrentLocationID, doc.CurrentLotSerialNumber))
+            {
+                doc.Status = ScanStatuses.Scan;
+                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryRemoved, Document.Current.Quantity, ((InventoryItem)PXSelectorAttribute.Select<PickPackInfo.currentInventoryID>(this.Document.Cache, doc)).InventoryCD.TrimEnd());
+                doc.Quantity = 1;
+                doc.ScanMode = ScanModes.Add;
+                doc.ScanState = ScanStates.Item;
             }
             else
             {
                 doc.Status = ScanStatuses.Error;
-                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryMissing, doc.CurrentInventoryID);
+                doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.InventoryMissing);
             }
-
-            doc.CurrentInventoryID = null;
-            doc.CurrentSubID = null;
-            doc.CurrentLocationID = null;
         }
-
+        
         protected virtual void ProcessNewPackageCommand(string[] commands)
         {
             var doc = this.Document.Current;
@@ -647,7 +687,7 @@ namespace PX.Objects.SO
                 {
                     doc.Status = ScanStatuses.Information;
                     doc.Message = WM.Messages.PackageWeightPrompt;
-                    doc.ScanMode = ScanModes.Weight;
+                    doc.ScanState = ScanStates.Weight;
                 }
             }
         }
@@ -663,7 +703,7 @@ namespace PX.Objects.SO
             this.Packages.Update(package);
         }
 
-        protected virtual bool SetCurrentInventoryIDForLotSerial(string barcode)
+        protected virtual bool SetCurrentInventoryIDByLotSerial(string barcode)
         {
             var doc = this.Document.Current;
             INLotSerialStatus firstMatch = null;
@@ -683,65 +723,60 @@ namespace PX.Objects.SO
                 }
             }
 
-            if(firstMatch != null)
+            if(firstMatch == null)
+            {
+                return false;
+            }
+            else
             {
                 doc.CurrentInventoryID = firstMatch.InventoryID;
                 doc.CurrentSubID = firstMatch.SubItemID;
                 doc.CurrentLocationID = firstMatch.LocationID;
+                doc.CurrentLotSerialNumber = barcode;
                 return true;
-            }
-            else
-            {
-                return false;
             }
         }
 
-        protected virtual bool AddPick(int? inventoryID, int? subID, decimal? quantity, string lotSerialNumber)
+        protected virtual bool AddPick(int? inventoryID, int? subID, decimal? quantity, int? locationID, string lotSerialNumber)
         {
-            SOShipLinePick firstLine = null;
+            SOShipLinePick firstMatchingLine = null;
             foreach (SOShipLinePick pickLine in this.Transactions.Select())
             {
-                if (pickLine.InventoryID == inventoryID && (pickLine.SubItemID == subID || Setup.Current.UseInventorySubItem == false))
+                if (pickLine.InventoryID != inventoryID || (pickLine.SubItemID != subID && Setup.Current.UseInventorySubItem == true)) continue;
+                if (firstMatchingLine == null) firstMatchingLine = pickLine;
+                if (pickLine.PickedQty.GetValueOrDefault() >= pickLine.ShippedQty.GetValueOrDefault()) continue;
+
+                //We first try to fill all the lines sequentially - item may be present multiple times on the shipment
+                decimal quantityForCurrentPickLine = Math.Min(quantity.GetValueOrDefault(), pickLine.ShippedQty.GetValueOrDefault() - pickLine.PickedQty.GetValueOrDefault());
+                pickLine.PickedQty = pickLine.PickedQty.GetValueOrDefault() + quantityForCurrentPickLine;
+                this.Transactions.Update(pickLine);
+
+                if (this.Document.Current.CurrentPackageLineNbr != null)
                 {
-                    if (firstLine == null) firstLine = pickLine;
+                    AddPickToCurrentPackageDetails(lotSerialNumber, quantityForCurrentPickLine);
+                }
+                AddPickToCurrentLineSplits(locationID, lotSerialNumber, quantityForCurrentPickLine);
 
-                    if (pickLine.PickedQty.GetValueOrDefault() < pickLine.ShippedQty.GetValueOrDefault())
-                    {
-                        //We first try to fill all the lines sequentially - item may be present multiple times on the shipment
-                        decimal quantityForCurrentPickLine = Math.Min(quantity.GetValueOrDefault(), pickLine.ShippedQty.GetValueOrDefault() - pickLine.PickedQty.GetValueOrDefault());
-                        pickLine.PickedQty = pickLine.PickedQty.GetValueOrDefault() + quantityForCurrentPickLine;
-                        this.Transactions.Update(pickLine);
-                        if (this.Document.Current.CurrentPackageLineNbr != null)
-                        {
-                            AddPickToCurrentPackageDetails(lotSerialNumber, quantityForCurrentPickLine);
-                        }
-                        if (lotSerialNumber != null)
-                        {
-                            AddLotSerialToCurrentLineSplits(lotSerialNumber, quantityForCurrentPickLine);
-                        }
-                        quantity = quantity - quantityForCurrentPickLine;
-                    }
-
-                    if(quantity == 0)
-                    {
-                        return true;
-                    }
+                quantity = quantity - quantityForCurrentPickLine;
+            
+                if(quantity == 0)
+                {
+                    return true;
                 }
             }
 
-            if (firstLine != null)
+            if (firstMatchingLine != null)
             {
                 //All the lines are already filled; just over-pick the first one.
-                firstLine.PickedQty = firstLine.PickedQty.GetValueOrDefault() + quantity;
-                this.Transactions.Update(firstLine);
+                firstMatchingLine.PickedQty = firstMatchingLine.PickedQty.GetValueOrDefault() + quantity;
+                this.Transactions.Update(firstMatchingLine);
+
                 if (this.Document.Current.CurrentPackageLineNbr != null)
                 {
                     AddPickToCurrentPackageDetails(lotSerialNumber, quantity.GetValueOrDefault());
                 }
-                if (lotSerialNumber != null)
-                {
-                    AddLotSerialToCurrentLineSplits(lotSerialNumber, quantity.GetValueOrDefault());
-                }
+                AddPickToCurrentLineSplits(locationID, lotSerialNumber, quantity.GetValueOrDefault());
+
                 return true;
             }
             else
@@ -751,17 +786,45 @@ namespace PX.Objects.SO
             }
         }
 
-        protected virtual void AddLotSerialToCurrentLineSplits(string lotSerial, decimal quantity)
+        protected virtual void AddPickToCurrentLineSplits(int? locationID, string lotSerialNumber, decimal quantity)
         {
-            //TODO: See if it's possible to set quantity > 1 in some cases with lot/numered (shipment 000201 didn't work out in this way, hence the loop)
-            for (int i = 0; i < quantity; i++)
+            if (String.IsNullOrEmpty(lotSerialNumber))
             {
-                var split = (SOShipLineSplit)this.Splits.Cache.CreateInstance();
-                split.Qty = 1;
-                split.LocationID = this.Document.Current.CurrentLocationID;
-                split.LotSerialNbr = lotSerial;
-                this.Splits.Insert(split);
+                //This is not a serialized item, we can add quantity to existing split.
+                bool foundMatchingSplit = false;
+                foreach(SOShipLineSplit split in this.Splits.Select())
+                {
+                    if(split.LocationID == locationID)
+                    {
+                        split.Qty += quantity;
+                        this.Splits.Update(split);
+                        foundMatchingSplit = true;
+                        break;
+                    }
+                }
+
+                if(!foundMatchingSplit)
+                {
+                    InsertSplit(quantity, locationID, lotSerialNumber);
+                }
             }
+            else
+            {
+                //Each lot/serial split needs to be inserted as a separate line.
+                for (int i = 0; i < quantity; i++)
+                {
+                    InsertSplit(1, locationID, lotSerialNumber);
+                }
+            }
+        }
+
+        protected virtual void InsertSplit(decimal quantity, int? locationID, string lotSerialNumber)
+        {
+            var split = (SOShipLineSplit)this.Splits.Cache.CreateInstance();
+            split.Qty = quantity;
+            split.LocationID = locationID;
+            split.LotSerialNbr = lotSerialNumber;
+            this.Splits.Insert(split);
         }
 
         protected virtual void AddPickToCurrentPackageDetails(string lotSerial, decimal quantity)
@@ -817,122 +880,59 @@ namespace PX.Objects.SO
             return total;
         }
 
-        protected virtual bool RemovePick(int? inventoryID, int? subID, decimal? quantity, string lotSerialNumber)
+        protected virtual bool RemovePick(int? inventoryID, int? subID, decimal? quantity, int? locationID, string lotSerialNumber)
         {
-            if (!ValidateRemovePick(inventoryID, subID, lotSerialNumber))
-                return false;
-
-            SOShipLinePick firstLine = null;
             foreach (SOShipLinePick pickLine in this.Transactions.Select())
             {
-                if (pickLine.InventoryID == inventoryID && (pickLine.SubItemID == subID || Setup.Current.UseInventorySubItem == false))
+                if (pickLine.InventoryID != inventoryID || (pickLine.SubItemID != subID && Setup.Current.UseInventorySubItem == true)) continue;
+                if (pickLine.PickedQty.GetValueOrDefault() <= 0) continue;
+
+                this.Transactions.Current = pickLine;
+                foreach (SOShipLineSplit pickSplit in this.Splits.Select())
                 {
-                    if (firstLine == null) firstLine = pickLine;
+                    if (pickSplit.LocationID != locationID && locationID != null) continue;
+                    if (pickSplit.LotSerialNbr != lotSerialNumber && !String.IsNullOrEmpty(lotSerialNumber)) continue;
 
-                    if (pickLine.PickedQty.GetValueOrDefault() > 0)
+                    decimal quantityToRemoveForSplit = Math.Min(pickSplit.Qty.GetValueOrDefault(), quantity.GetValueOrDefault());
+                    quantity -= quantityToRemoveForSplit;
+                    pickSplit.Qty -= quantityToRemoveForSplit;
+
+                    if (pickSplit.Qty == 0)
                     {
-                        //We first try to remove the quantities from already scanned quantities sequentially - item may be present multiple times on the shipment
-                        decimal quantityForCurrentPickLine = Math.Min(quantity.GetValueOrDefault(), pickLine.PickedQty.GetValueOrDefault());
-                        pickLine.PickedQty = pickLine.PickedQty.GetValueOrDefault() - quantityForCurrentPickLine;
-                        if (pickLine.PickedQty == 0) pickLine.PickedQty = null;
-
-                        this.Transactions.Update(pickLine);
-                        if (this.Document.Current.CurrentPackageLineNbr != null)
-                        {
-                            RemovePickFromPackageDetails(lotSerialNumber, quantityForCurrentPickLine);
-                        }
-                        if (lotSerialNumber != null)
-                        {
-                            RemoveLotSerialFromCurrentLineSplits(lotSerialNumber, quantityForCurrentPickLine);
-                        }
-
-                        quantity = quantity - quantityForCurrentPickLine;
+                        this.Splits.Delete(pickSplit);
+                    }
+                    else
+                    {
+                        this.Splits.Update(pickSplit);
                     }
 
-                    if (quantity == 0)
+                    pickLine.PickedQty -= quantityToRemoveForSplit;
+                    if (pickLine.PickedQty == 0) pickLine.PickedQty = null;
+                    this.Transactions.Update(pickLine);
+
+                    if (this.Document.Current.CurrentPackageLineNbr != null)
                     {
-                        return true;
-                    }
-                }
-            }
-
-            if (firstLine != null)
-            {
-                //All the lines are already cleared; deduct from the first one which will go negative (this will be validated during Confirm step).
-                firstLine.PickedQty = firstLine.PickedQty.GetValueOrDefault() - quantity;
-                if (firstLine.PickedQty == 0) firstLine.PickedQty = null;
-                this.Transactions.Update(firstLine);
-                if (this.Document.Current.CurrentPackageLineNbr != null)
-                {
-                    RemovePickFromPackageDetails(lotSerialNumber, quantity.GetValueOrDefault());
-                }
-                if (lotSerialNumber != null)
-                {
-                    RemoveLotSerialFromCurrentLineSplits(lotSerialNumber, quantity.GetValueOrDefault());
-                }
-                return true;
-            }
-            else
-            {
-                //Item not found.
-                return false;
-            }
-        }
-
-        private bool ValidateRemovePick(int? inventoryID, int? subID, string lotSerialNumber)
-        {
-            int itemsCount = 0;
-
-            if (Packages.Select().Count == 0)
-                return true;
-            
-            // Validation: 
-            //  a) item is not in current package, but is present in ONE and ONLY one package - we can safely remove it.
-            //  b) item is not in current package, but is present in MULTIPLE other packages - we can't decide on behalf of user and need to return FALSE
-            //  c) item is not in current package, and not in any other package - we need to return FALSE
-            foreach (SOPackageDetailSplit split in PackageSplits.Cache.Cached)
-            {
-                if (split.InventoryID == inventoryID &&
-                    (split.SubItemID == subID || Setup.Current.UseInventorySubItem == false) &&
-                    split.LotSerialNbr == lotSerialNumber)
-                {
-                    if (split.LineNbr == this.Document.Current.CurrentPackageLineNbr)
-                    {
-                        return true;
+                        RemovePickFromPackageDetails(lotSerialNumber, quantityToRemoveForSplit);
                     }
 
-                    itemsCount++;
-                }
-            }
-
-            return itemsCount == 1;
-        }
-
-        protected virtual void RemoveLotSerialFromCurrentLineSplits(string lotSerial, decimal quantity)
-        {
-            foreach(SOShipLineSplit split in this.Splits.Select())
-            {
-                if(split.LotSerialNbr == lotSerial)
-                {
-                    if (split.Qty != 1)
-                    {
-                        throw new PXException(PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotSplitQuantityError, lotSerial, split.Qty));
-                    }
-
-                    this.Splits.Delete(split);
-                    quantity = quantity - 1;
+                    if (quantity == 0) break;
                 }
 
                 if (quantity == 0) break;
             }
             
-            if(quantity != 0)
+            if(quantity == 0)
             {
-                // This condition is validated in RemovePick, so we should never get to this point.
-                throw new PXException(PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotMissingWithQuantity, lotSerial, quantity));
+                return true;
+            }
+            else
+            {
+                //TODO: Handle situation where we were able to partially remove a pick
+                //returning false will show InventoryMissing message which is inaccurate
+                return false;
             }
         }
-
+        
         protected virtual void RemovePickFromPackageDetails(string lotSerial, decimal quantity)
         {
             var package = (SOPackageDetailPick)this.Packages.Search<SOPackageDetailPick.lineNbr>(this.Document.Current.CurrentPackageLineNbr);
@@ -1087,7 +1087,7 @@ namespace PX.Objects.SO
         protected virtual void PreparePrintJobs(SOShipmentEntry graph)
         {
             PrintJobMaint jobMaint = null;
-            var printSetup = (SOPickPackShipUserSetup)UserSetup.Select();
+            var printSetup = (SOPickPackShipUserSetup) UserSetup.Select();
 
             if (printSetup.ShipmentConfirmation == true)
             {
@@ -1156,7 +1156,8 @@ namespace PX.Objects.SO
                         graph.Transactions.Update(graph.Transactions.Current);
                     }
 
-                    //Set any lot/serial numbers that were assigned
+                    //Set any lot/serial numbers as well as locations that were assigned
+                    this.Transactions.Current = pickLine;
                     bool initialized = false;
                     foreach(SOShipLineSplit split in this.Splits.Select())
                     {
