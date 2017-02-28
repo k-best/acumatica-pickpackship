@@ -37,6 +37,7 @@ namespace PX.Objects.WM
         public const string LotInvalidQuantity = "Lot/serial {0} not found in sufficient quantity on shipment.";
         public const string LotMissing = "Lot/serial {0} not found in database.";
         public const string LotNotSupported = "Lot/serial numbers that are assigned when used and which require tracking of expiration date are not supported with this tool.";
+        public const string LotNotSupportedUOM = "Items which are lot/serial tracked must use the same base and sale unit of measures.";
         public const string LotScanPrompt = "Please scan lot/serial number.";
         public const string LotSplitQuantityError = "Unexpected split quantity for lot/serial {0} (Quantity: {1}).";
         public const string LotUniquenessError = "More than one lot/serial entry was found. This is not yet supported, please search by Inventory ID.";

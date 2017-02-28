@@ -136,6 +136,7 @@ namespace PX.Objects.SO
         public const double ScaleWeightValiditySeconds = 30;
 
         public PXSetup<INSetup> Setup;
+        public PXSetup<SOSetup> SalesOrderSetup;
         public PXSelect<SOPickPackShipUserSetup, Where<SOPickPackShipUserSetup.userID, Equal<Current<AccessInfo.userID>>>> UserSetup;
         public PXCancel<PickPackInfo> Cancel;
         public PXFilter<PickPackInfo> Document;
@@ -144,6 +145,15 @@ namespace PX.Objects.SO
         public PXSelect<SOShipLineSplit, Where<SOShipLineSplit.shipmentNbr, Equal<Current<SOShipLinePick.shipmentNbr>>, And<SOShipLineSplit.lineNbr, Equal<Current<SOShipLinePick.lineNbr>>>>> Splits;
         public PXSelect<SOPackageDetailPick, Where<SOPackageDetailPick.shipmentNbr, Equal<Current<SOShipment.shipmentNbr>>>> Packages;
         public PXSelect<SOPackageDetailSplit, Where<SOPackageDetailSplit.shipmentNbr, Equal<Current<SOPackageDetailPick.shipmentNbr>>, And<SOPackageDetailSplit.lineNbr, Equal<Current<SOPackageDetailPick.lineNbr>>>>> PackageSplits;
+
+        public PickPackShip()
+        {
+            //TODO: Remove when licence handling has been implemented
+            if (DateTime.Now > new DateTime(2017, 4, 30))
+            {
+                throw new PXNotEnoughRightsException(PXCacheRights.Denied, "Pick, Pack and Ship: Evaluation period expired.");
+            }
+        }
 
         protected void PickPackInfo_RowSelected(PXCache sender, PXRowSelectedEventArgs e)
         {
@@ -513,8 +523,19 @@ namespace PX.Objects.SO
 
         protected virtual bool IsLocationRequired()
         {
-            //TODO: Add a setting - it's always on for now
-            return PXAccess.FeatureInstalled<FeaturesSet.warehouseLocation>();
+            bool isPickLocation = false;
+
+            if (SalesOrderSetup.Current != null && PXAccess.FeatureInstalled<FeaturesSet.warehouseLocation>())
+            {
+                SOSetupExt setupExt = PXCache<SOSetup>.GetExtension<SOSetupExt>(SalesOrderSetup.Current);
+
+                if (setupExt != null)
+                {
+                    isPickLocation = (setupExt.UsePickLocation.HasValue ? setupExt.UsePickLocation.Value : false);
+                }
+            }
+
+            return isPickLocation;
         }
 
         protected virtual bool IsCurrentPackageRequiredAndMissing()
@@ -561,6 +582,12 @@ namespace PX.Objects.SO
                     {
                         //TODO: Implement support for this? Not even clear if Acumatica supports that.
                         throw new NotImplementedException(WM.Messages.LotNotSupported);
+                    }
+
+                    if(inventoryItem.BaseUnit != inventoryItem.SalesUnit)
+                    {
+                        //TODO: Implement support for this by prompting user to enter as many serial/lot as what's included in the SaleUnit.
+                        throw new NotImplementedException("Items which are lot/serial tracked must use the same base and sale unit of measures.");
                     }
 
                     lotSerialNumbered = true;
@@ -1142,7 +1169,8 @@ namespace PX.Objects.SO
                         graph.Transactions.Update(graph.Transactions.Current);
                     }
 
-                    //Set any lot/serial numbers that were assigned
+                    //Set any lot/serial numbers as well as locations that were assigned
+                    this.Transactions.Current = pickLine;
                     bool initialized = false;
                     foreach(SOShipLineSplit split in this.Splits.Select())
                     {
