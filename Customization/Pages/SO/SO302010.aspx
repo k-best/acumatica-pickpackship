@@ -185,6 +185,22 @@
 					</px:PXSplitContainer>
                 </Template>
             </px:PXTabItem>
+            <px:PXTabItem Text="Scan Log">
+                <Template>
+                    <px:PXGrid ID="gridLog" runat="server" DataSourceID="ds" Style="height: 250px;" Width="100%" OnRowDataBound="grid_RowDataBound" SkinID="Inquire" Height="372px">
+						<Levels>
+							<px:PXGridLevel DataMember="ScanLogs">
+								<Columns>
+									<px:PXGridColumn DataField="LogLineDate" Width="100px" />
+									<px:PXGridColumn DataField="LogBarcode" Width="200px" />
+									<px:PXGridColumn DataField="LogMessage" Width="400px" />
+								</Columns>
+							</px:PXGridLevel>
+						</Levels>                
+						<AutoSize Enabled="True" />
+					</px:PXGrid>
+                </Template>
+            </px:PXTabItem>
         </Items>
         <AutoSize Enabled="True" Container="Window" />
     </px:PXTab>
