@@ -16,12 +16,7 @@ namespace PX.Objects.WM
         public const string BarcodeMissing = "Barcode {0} not found in database.";
         public const string BarcodePrompt = "Please scan a barcode.";
         #endregion
-
-        #region Box
-        public const string BoxAdded = "Box {0} added to the shipment. Ready to pick items.";
-        public const string BoxMissing = "Box {0} not found in database.";
-        #endregion
-
+        
         #region Command
         public const string CommandAdd = "Add mode set.";
         public const string CommandClear = "Screen cleared.";
@@ -58,15 +53,16 @@ namespace PX.Objects.WM
         #endregion
 
         #region Package
+        public const string BoxMissing = "Box {0} not found in database.";
         public const string PackageComplete = "Package is complete. Weight: {0:0.0000} {1}";
         public const string PackageCompletePrompt = "Please complete the current package using the {0}{1} command.";
         public const string PackageCommandMissingBoxId = "The New Package command must be followed by a Box ID.";
         public const string PackageIncompleteError = "Please complete the current package using the {0}{1} command.";
         public const string PackageInvalidFileExtension = "Unsupported file extension attached to the package for Shipment {0}/{1}";
         public const string PackageInvalidWeight = "{0} is not a valid weight.";
+        public const string PackageMissingCurrent = "There is no package currently selected or in process.";
         public const string PackageRemoveInventoryError = "The system was not able to locate package details for the item you just removed.";
         public const string PackageLineNbrMissing = "Unable to find package line {0} - was it deleted manually?";
-        public const string PackageMissingCurrent = "There is no package currently selected or in process.";
         public const string PackageWeightPrompt = "Please enter the total weight of this package and press enter.";
         #endregion
 

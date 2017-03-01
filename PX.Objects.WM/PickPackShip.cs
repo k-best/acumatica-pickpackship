@@ -46,7 +46,6 @@ namespace PX.Objects.SO
         public const string LotSerial = "S";
         public const string NewPackage = "P";
         public const string PackageComplete = "PC";
-        public const string QuickPackage = "PQ";
     }
 
     public class ScanLog : IBqlTable
@@ -162,7 +161,7 @@ namespace PX.Objects.SO
         public PXSelect<SOShipLinePick, Where<SOShipLinePick.shipmentNbr, Equal<Current<PickPackInfo.shipmentNbr>>>, OrderBy<Asc<SOShipLinePick.shipmentNbr, Asc<SOShipLine.lineNbr>>>> Transactions;
         public PXSelect<SOShipLineSplit, Where<SOShipLineSplit.shipmentNbr, Equal<Current<SOShipLinePick.shipmentNbr>>, And<SOShipLineSplit.lineNbr, Equal<Current<SOShipLinePick.lineNbr>>>>> Splits;
         public PXSelect<SOPackageDetailPick, Where<SOPackageDetailPick.shipmentNbr, Equal<Current<SOShipment.shipmentNbr>>>> Packages;
-        public PXSelect<SOPackageDetailSplit, Where<SOPackageDetailSplit.shipmentNbr, Equal<Current<SOPackageDetailPick.shipmentNbr>>, And<SOPackageDetailSplit.lineNbr, Equal<Current<SOPackageDetailPick.lineNbr>>>>> PackageSplits;
+        public PXSelect<SOShipLineSplit, Where<SOShipLineSplit.shipmentNbr, Equal<Current<SOPackageDetailPick.shipmentNbr>>>> PackageSplits;
         public PXSelect<ScanLog> ScanLogs;
 
         public PickPackShip()
@@ -264,9 +263,10 @@ namespace PX.Objects.SO
         protected IEnumerable packageSplits()
         {
             //We only use this view as a container for picked package details. We don't care about what's in the DB for this shipment.
-            foreach (SOPackageDetailSplit row in PackageSplits.Cache.Cached)
+            foreach (SOShipLineSplit row in PackageSplits.Cache.Cached)
             {
-                if (this.Packages.Current != null && row.LineNbr == this.Packages.Current.LineNbr && PackageSplits.Cache.GetStatus(row) == PXEntryStatus.Inserted)
+                var ext = PackageSplits.Cache.GetExtension<SOShipLineSplitExt>(row);
+                if (this.Packages.Current != null && ext.PackageLineNbr == this.Packages.Current.LineNbr)
                 {
                     yield return row;
                 }
@@ -407,10 +407,6 @@ namespace PX.Objects.SO
                     case ScanCommands.PackageComplete:
                         ProcessPackageCompleteCommand();
                         break;
-                    case ScanCommands.QuickPackage:
-                        ProcessNewPackageCommand(commands);
-                        ProcessPackageCompleteCommand();
-                        break;
                     default:
                         doc.Status = ScanStatuses.Error;
                         doc.Message = WM.Messages.CommandUnknown;
@@ -466,14 +462,7 @@ namespace PX.Objects.SO
         protected virtual void ProcessItemBarcode(string barcode)
         {
             var doc = this.Document.Current;
-
-            if (IsCurrentPackageRequiredAndMissing())
-            {
-                doc.Status = ScanStatuses.Error;
-                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageMissingCurrent);
-                return;
-            }
-
+            
             if (doc.LotSerialSearch == true)
             {
                 if (!SetCurrentInventoryIDByLotSerial(barcode))
@@ -570,15 +559,7 @@ namespace PX.Objects.SO
         {
 			return PXAccess.FeatureInstalled<FeaturesSet.warehouseLocation>();
         }
-
-        protected virtual bool IsCurrentPackageRequiredAndMissing()
-        {
-            // If package is mandatory or if package has been added and current package isn't selected.
-            return ((UserSetup.Current.MandatoryPackage.HasValue && UserSetup.Current.MandatoryPackage.Value) ||
-                    Packages.SelectSingle() != null) &&
-                   this.Document.Current.CurrentPackageLineNbr == null;
-        }
-
+        
         protected virtual bool SetCurrentInventoryIDByItemBarcode(string barcode, out bool lotSerialNumbered)
         {
             var doc = this.Document.Current;
@@ -689,10 +670,9 @@ namespace PX.Objects.SO
                 var newPackage = (SOPackageDetailPick)this.Packages.Cache.CreateInstance();
                 newPackage.BoxID = box.BoxID;
                 newPackage = this.Packages.Insert(newPackage);
-
                 doc.CurrentPackageLineNbr = newPackage.LineNbr;
-                doc.Status = ScanStatuses.Information;
-                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.BoxAdded, boxID);
+
+                ProcessPackageCompleteCommand();
             }
         }
 
@@ -707,6 +687,17 @@ namespace PX.Objects.SO
             }
             else
             {
+                //Attach any unlinked splits to newly inserted package
+                foreach(SOShipLineSplit split in this.Splits.Cache.Cached)
+                {
+                    var ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
+                    if(ext.PackageLineNbr == null)
+                    {
+                        ext.PackageLineNbr = doc.CurrentPackageLineNbr;
+                        this.Splits.Update(split);
+                    }
+                }
+
                 if(this.UserSetup.Current.UseScale == true)
                 {
                     var scale = (SMScale)PXSelect<SMScale, Where<SMScale.scaleID, Equal<Required<SOPickPackShipUserSetup.scaleID>>>>.Select(this, this.UserSetup.Current.ScaleID);
@@ -796,11 +787,7 @@ namespace PX.Objects.SO
                 decimal quantityForCurrentPickLine = Math.Min(quantity.GetValueOrDefault(), pickLine.ShippedQty.GetValueOrDefault() - pickLine.PickedQty.GetValueOrDefault());
                 pickLine.PickedQty = pickLine.PickedQty.GetValueOrDefault() + quantityForCurrentPickLine;
                 this.Transactions.Update(pickLine);
-
-                if (this.Document.Current.CurrentPackageLineNbr != null)
-                {
-                    AddPickToCurrentPackageDetails(lotSerialNumber, quantityForCurrentPickLine);
-                }
+                
                 AddPickToCurrentLineSplits(locationID, lotSerialNumber, quantityForCurrentPickLine);
 
                 quantity = quantity - quantityForCurrentPickLine;
@@ -816,11 +803,6 @@ namespace PX.Objects.SO
                 //All the lines are already filled; just over-pick the first one.
                 firstMatchingLine.PickedQty = firstMatchingLine.PickedQty.GetValueOrDefault() + quantity;
                 this.Transactions.Update(firstMatchingLine);
-
-                if (this.Document.Current.CurrentPackageLineNbr != null)
-                {
-                    AddPickToCurrentPackageDetails(lotSerialNumber, quantity.GetValueOrDefault());
-                }
                 AddPickToCurrentLineSplits(locationID, lotSerialNumber, quantity.GetValueOrDefault());
 
                 return true;
@@ -840,7 +822,9 @@ namespace PX.Objects.SO
                 bool foundMatchingSplit = false;
                 foreach(SOShipLineSplit split in this.Splits.Select())
                 {
-                    if(split.LocationID == locationID)
+                    // Splits are linked to the corresponding package line number. If this is a new package, PackageLineNbr will be null.
+                    var ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
+                    if (split.LocationID == locationID && ext.PackageLineNbr == this.Document.Current.CurrentPackageLineNbr)
                     {
                         split.Qty += quantity;
                         this.Splits.Update(split);
@@ -871,39 +855,15 @@ namespace PX.Objects.SO
             split.LocationID = locationID;
             split.LotSerialNbr = lotSerialNumber;
             this.Splits.Insert(split);
-        }
 
-        protected virtual void AddPickToCurrentPackageDetails(string lotSerial, decimal quantity)
-        {
-            var package = (SOPackageDetailPick)this.Packages.Search<SOPackageDetailPick.lineNbr>(this.Document.Current.CurrentPackageLineNbr);
-            if (package == null)
-            {
-                throw new PXException(PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageLineNbrMissing, this.Document.Current.CurrentPackageLineNbr));
+            if(this.Document.Current.CurrentPackageLineNbr != null)
+            { 
+                var ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
+                ext.PackageLineNbr = this.Document.Current.CurrentPackageLineNbr;
+                this.Splits.Update(split);
             }
-
-            // First try to update corresponding item/subitem/lot/serial in current package if it exists
-            this.Packages.Current = package;
-            foreach (SOPackageDetailSplit split in this.PackageSplits.Select())
-            {
-                if (split.InventoryID == this.Transactions.Current.InventoryID && split.SubItemID == this.Transactions.Current.SubItemID && split.LotSerialNbr == lotSerial)
-                {
-                    split.Qty += quantity;
-                    this.PackageSplits.Update(split);
-                    return;
-                }
-            }
-
-            // No match found, insert new row
-            SOPackageDetailSplit newSplit = (SOPackageDetailSplit)this.PackageSplits.Cache.CreateInstance();
-            newSplit.LineNbr = this.Document.Current.CurrentPackageLineNbr;
-            newSplit.InventoryID = this.Transactions.Current.InventoryID;
-            newSplit.SubItemID = this.Transactions.Current.SubItemID;
-            newSplit.Qty = quantity;
-            newSplit.QtyUOM = this.Transactions.Current.UOM;
-            newSplit.LotSerialNbr = lotSerial;
-            this.PackageSplits.Insert(newSplit);
         }
-
+        
         protected virtual decimal GetTotalQuantityPickedForLotSerial(int? inventoryID, int? subID, string lotSerialNumber)
         {
             decimal total = 0;
@@ -934,33 +894,31 @@ namespace PX.Objects.SO
                 if (pickLine.PickedQty.GetValueOrDefault() <= 0) continue;
 
                 this.Transactions.Current = pickLine;
-                foreach (SOShipLineSplit pickSplit in this.Splits.Select())
+                foreach (SOShipLineSplit split in this.Splits.Select())
                 {
-                    if (pickSplit.LocationID != locationID && locationID != null) continue;
-                    if (pickSplit.LotSerialNbr != lotSerialNumber && !String.IsNullOrEmpty(lotSerialNumber)) continue;
+                    var ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
 
-                    decimal quantityToRemoveForSplit = Math.Min(pickSplit.Qty.GetValueOrDefault(), quantity.GetValueOrDefault());
+                    if (split.LocationID != locationID && locationID != null) continue;
+                    if (ext.PackageLineNbr != this.Document.Current.CurrentPackageLineNbr) continue;
+                    if (split.LotSerialNbr != lotSerialNumber && !String.IsNullOrEmpty(lotSerialNumber)) continue;
+
+                    decimal quantityToRemoveForSplit = Math.Min(split.Qty.GetValueOrDefault(), quantity.GetValueOrDefault());
                     quantity -= quantityToRemoveForSplit;
-                    pickSplit.Qty -= quantityToRemoveForSplit;
+                    split.Qty -= quantityToRemoveForSplit;
 
-                    if (pickSplit.Qty == 0)
+                    if (split.Qty == 0)
                     {
-                        this.Splits.Delete(pickSplit);
+                        this.Splits.Delete(split);
                     }
                     else
                     {
-                        this.Splits.Update(pickSplit);
+                        this.Splits.Update(split);
                     }
 
                     pickLine.PickedQty -= quantityToRemoveForSplit;
                     if (pickLine.PickedQty == 0) pickLine.PickedQty = null;
                     this.Transactions.Update(pickLine);
-
-                    if (this.Document.Current.CurrentPackageLineNbr != null)
-                    {
-                        RemovePickFromPackageDetails(lotSerialNumber, quantityToRemoveForSplit);
-                    }
-
+                    
                     if (quantity == 0) break;
                 }
 
@@ -979,51 +937,6 @@ namespace PX.Objects.SO
             }
         }
         
-        protected virtual void RemovePickFromPackageDetails(string lotSerial, decimal quantity)
-        {
-            var package = (SOPackageDetailPick)this.Packages.Search<SOPackageDetailPick.lineNbr>(this.Document.Current.CurrentPackageLineNbr);
-            if (package == null)
-            {
-                throw new PXException(PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageLineNbrMissing, this.Document.Current.CurrentPackageLineNbr));
-            }
-
-            this.Packages.Current = package;
-
-            // Try removing in current package first
-            foreach (SOPackageDetailSplit split in this.PackageSplits.Select())
-                if (RemoveSplitFromPackageDetails(split, lotSerial, quantity))
-                    return;
-
-            // Remove in another package
-            foreach (SOPackageDetailSplit split in this.PackageSplits.Cache.Cached)
-                if (RemoveSplitFromPackageDetails(split, lotSerial, quantity))
-                    return;
-             
-            throw new PXException(PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageRemoveInventoryError));
-        }
-
-        protected virtual bool RemoveSplitFromPackageDetails(SOPackageDetailSplit split, string lotSerial, decimal quantity)
-        {
-            if (split.InventoryID == this.Transactions.Current.InventoryID &&
-                (split.SubItemID == this.Transactions.Current.SubItemID || Setup.Current.UseInventorySubItem == false) &&
-                split.LotSerialNbr == lotSerial)
-            {
-                if (quantity >= split.Qty)
-                {
-                    this.PackageSplits.Delete(split);
-                }
-                else
-                {
-                    split.Qty -= quantity;
-                    this.PackageSplits.Update(split);
-                }
-
-                return true;
-            }
-
-            return false;
-        }
-
         public PXAction<PickPackInfo> Confirm;
         [PXUIField(DisplayName = "Confirm Picked")]
         [PXButton]
@@ -1242,14 +1155,6 @@ namespace PX.Objects.SO
             {
                 package.Confirmed = true;
                 graph.Packages.Insert(package);
-            }
-
-            //TODO: Since our view doesn't exist in the SOShipmentEntry graph, we go straight through caches.
-            //If this code is merged into the main Acumatica code base, this section can be rewritten to use the view
-            var packageSplitCache = graph.Caches[typeof(SOPackageDetailSplit)];
-            foreach (SOPackageDetailSplit split in this.PackageSplits.Cache.Cached)
-            {
-                packageSplitCache.Insert(split);
             }
         }
 

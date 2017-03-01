@@ -50,11 +50,5 @@ namespace PX.SM
         [PXUIEnabled(typeof(useScale))]
         [PXUIField(DisplayName = "Scale")]
         public virtual string ScaleID { get; set; }
-
-        public abstract class mandatoryPackage : PX.Data.IBqlField { }
-        [PXDBBool]
-        [PXDefault(false)]
-        [PXUIField(DisplayName = "Package Mandatory")]
-        public virtual bool? MandatoryPackage { get; set; }
     }
 }

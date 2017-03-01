@@ -264,8 +264,8 @@
                                                 <AddItem>
                                                     <PXTextEdit TypeFullName="PX.Web.UI.PXTextEdit">
                                                         <Prop Key="Virtual:ApplyStylesheetSkin" />
-                                                        <Prop Key="DataField" Value="QtyUOM" />
-                                                        <Prop Key="ID" Value="edQtyUOMSplit" />
+                                                        <Prop Key="DataField" Value="UOM" />
+                                                        <Prop Key="ID" Value="edUOMSplit" />
                                                     </PXTextEdit>
                                                 </AddItem>
                                                 <AddItem>
@@ -304,7 +304,7 @@
                                                 </AddItem>
                                                 <AddItem>
                                                     <PXGridColumn TypeFullName="PX.Web.UI.PXGridColumn">
-                                                        <Prop Key="DataField" Value="QtyUOM" />
+                                                        <Prop Key="DataField" Value="UOM" />
                                                         <Prop Key="Width" Value="70" />
                                                     </PXGridColumn>
                                                 </AddItem>

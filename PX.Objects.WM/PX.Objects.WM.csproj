@@ -55,9 +55,9 @@
     <Compile Include="DAC\SMPrintJobParameter.cs" />
     <Compile Include="DAC\SMScale.cs" />
     <Compile Include="DAC\SOPackageDetailPick.cs" />
-    <Compile Include="DAC\SOPackageDetailSplit.cs" />
     <Compile Include="DAC\SOPickPackShipUserSetup.cs" />
     <Compile Include="DAC\SOShipLinePick.cs" />
+    <Compile Include="DAC\SOShipLineSplitExt.cs" />
     <Compile Include="Descriptor\Messages.cs" />
     <Compile Include="PickPackShip.cs" />
     <Compile Include="ScaleMaint.cs" />
@@ -65,7 +65,7 @@
     <Compile Include="PrintQueueMaint.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PickListPrintToQueueExtensions.cs" />
-    <Compile Include="SOSetupMaintExt.cs" />
+    <Compile Include="SOShipmentEntryPackageDetailExt.cs" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
