@@ -110,10 +110,9 @@ namespace Acumatica.DeviceHub
                             LogoutFromAcumatica();
                             break;
                         }
-
-                        decimal currentWeight = 0m;
+                        
                         decimal readWeight = 0m;
-                        WeightUnits weightUnit;
+                        WeightUnits weightUnit = WeightUnits.None;
                         HidDevice hidDevice = HidDevices.Enumerate(Properties.Settings.Default.ScaleDeviceVendorId, Properties.Settings.Default.ScaleDeviceProductId).FirstOrDefault();
 
                         if (hidDevice != null)
@@ -128,15 +127,14 @@ namespace Acumatica.DeviceHub
 
                             if (!weightUnit.Equals(WeightUnits.None))
                             {
-                                currentWeight = readWeight;
-                                _progress.Report(new MonitorMessage(String.Format(Strings.ScaleWeightNotify, currentWeight, WeightUnitToStringAbbreviation[weightUnit])));
+                                _progress.Report(new MonitorMessage(String.Format(Strings.ScaleWeightNotify, readWeight, WeightUnitToStringAbbreviation[weightUnit])));
 
-                                if (_lastWeightSentToAcumatica != currentWeight)
+                                if (_lastWeightSentToAcumatica != readWeight)
                                 {
                                     if (_screen != null || LoginToAcumatica())
                                     {
-                                        UpdateWeight(Properties.Settings.Default.ScaleID, ConvertWeightToKilogram(currentWeight, weightUnit));
-                                        _lastWeightSentToAcumatica = currentWeight;
+                                        UpdateWeight(Properties.Settings.Default.ScaleID, ConvertWeightToKilogram(readWeight, weightUnit));
+                                        _lastWeightSentToAcumatica = readWeight;
                                     }
                                 }
                             }
