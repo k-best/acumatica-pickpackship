@@ -191,7 +191,7 @@
 						<Levels>
 							<px:PXGridLevel DataMember="ScanLogs">
 								<Columns>
-									<px:PXGridColumn DataField="LogLineDate" Width="100px" />
+									<px:PXGridColumn DataField="LogLineDate" Width="160px" />
 									<px:PXGridColumn DataField="LogBarcode" Width="200px" />
 									<px:PXGridColumn DataField="LogMessage" Width="400px" />
 								</Columns>

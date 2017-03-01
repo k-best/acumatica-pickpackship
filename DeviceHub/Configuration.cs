@@ -27,7 +27,7 @@ namespace Acumatica.DeviceHub
         {
             InitializeComponent();
         }
-        
+
         private void Configuration_Load(object sender, EventArgs e)
         {
             InitPrinterList();
@@ -67,18 +67,22 @@ namespace Acumatica.DeviceHub
             const short scaleDataReport = 32;
             var scales = new List<ScaleDevice>();
             scales.Add(new ScaleDevice { Description = "<Not configured>" });
+
             foreach (var device in HidDevices.Enumerate())
             {
                 // Keep only devices supporting Scale Data Report
-                if (!device.Capabilities.Usage.Equals(scaleDataReport))
-                    continue;
-
-                scales.Add(new ScaleDevice
+                if (showAllDevicesCheckBox.Checked ||
+                    device.Capabilities.Usage.Equals(scaleDataReport) ||
+                    (device.Attributes.VendorId.Equals(Properties.Settings.Default.ScaleDeviceVendorId) &&
+                     device.Attributes.ProductId.Equals(Properties.Settings.Default.ScaleDeviceProductId)))
                 {
-                    Description = GetDeviceDescriptionFromDeviceDriver(device),
-                    VendorId = device.Attributes.VendorId,
-                    ProductId = device.Attributes.ProductId
-                });
+                    scales.Add(new ScaleDevice
+                    {
+                        Description = GetDeviceDescriptionFromDeviceDriver(device),
+                        VendorId = device.Attributes.VendorId,
+                        ProductId = device.Attributes.ProductId
+                    });
+                }
             }
 
             var currentDevice = scales.FirstOrDefault(s => s.VendorId == Properties.Settings.Default.ScaleDeviceVendorId && s.ProductId == Properties.Settings.Default.ScaleDeviceProductId);
@@ -185,31 +189,32 @@ namespace Acumatica.DeviceHub
             string productIdHex = productId.ToString(hexadecimalFormat);
 
             // Read from static list
-            StreamReader streamReader = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream(String.Concat(GetType().Namespace, namespaceSeparator, usbIdList)));
-
-            // Search vendor
-            while ((line = streamReader.ReadLine()) != null)
+            using (StreamReader streamReader = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream(String.Concat(GetType().Namespace, namespaceSeparator, usbIdList))))
             {
-                // Vendor found
-                if (line.StartsWith(vendorIdHex))
+                // Search vendor
+                while ((line = streamReader.ReadLine()) != null)
                 {
-                    vendor = line.Substring(String.Concat(vendorIdHex, doubleSpace).Length);
-                    string productLine = String.Concat(tab, productIdHex, doubleSpace).ToUpperInvariant();
-
-                    // Search product
-                    while ((line = streamReader.ReadLine()) != null && line.StartsWith(tab))
+                    // Vendor found
+                    if (line.StartsWith(vendorIdHex))
                     {
-                        // Product found
-                        if (line.ToUpperInvariant().StartsWith(productLine))
-                        {
-                            return String.Concat(vendor, vendorProductSeparator, line.Substring(productLine.Length));
-                        }
-                    }
+                        vendor = line.Substring(String.Concat(vendorIdHex, doubleSpace).Length);
+                        string productLine = String.Concat(tab, productIdHex, doubleSpace).ToUpperInvariant();
 
-                    // Product not found
-                    break;
-                }
-            };
+                        // Search product
+                        while ((line = streamReader.ReadLine()) != null && line.StartsWith(tab))
+                        {
+                            // Product found
+                            if (line.ToUpperInvariant().StartsWith(productLine))
+                            {
+                                return String.Concat(vendor, vendorProductSeparator, line.Substring(productLine.Length));
+                            }
+                        }
+
+                        // Product not found
+                        break;
+                    }
+                };
+            }
 
             return null;
         }
@@ -227,7 +232,7 @@ namespace Acumatica.DeviceHub
         private void okButton_Click(object sender, EventArgs e)
         {
             Uri validatedUri;
-            if(!Uri.TryCreate(acumaticaUrlTextBox.Text, UriKind.Absolute, out validatedUri))
+            if (!Uri.TryCreate(acumaticaUrlTextBox.Text, UriKind.Absolute, out validatedUri))
             {
                 MessageBox.Show(Strings.UrlMissingPrompt, this.Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 mainTab.SelectedIndex = 0;
@@ -251,14 +256,14 @@ namespace Acumatica.DeviceHub
                 return;
             }
 
-            if(_queues.Count == 0 && String.IsNullOrEmpty(acumaticaScaleIDTextBox.Text))
+            if (_queues.Count == 0 && String.IsNullOrEmpty(acumaticaScaleIDTextBox.Text))
             {
                 MessageBox.Show(Strings.PrintQueueOrScaleConfigurationMissingPrompt, this.Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 mainTab.SelectedIndex = 1;
                 return;
             }
 
-            if(!String.IsNullOrEmpty(acumaticaScaleIDTextBox.Text) && (scalesDropDown.SelectedItem == null || (scalesDropDown.SelectedItem as ScaleDevice).VendorId == 0))
+            if (!String.IsNullOrEmpty(acumaticaScaleIDTextBox.Text) && (scalesDropDown.SelectedItem == null || (scalesDropDown.SelectedItem as ScaleDevice).VendorId == 0))
             {
                 MessageBox.Show(String.Format(Strings.DeviceMissingPrompt, acumaticaScaleIDTextBox.Text), this.Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 mainTab.SelectedIndex = 2;
@@ -281,7 +286,11 @@ namespace Acumatica.DeviceHub
             try
             {
                 screen.Login(loginTextBox.Text, passwordTextBox.Text);
-                screen.Logout();
+                try
+                {
+                    screen.Logout();
+                }
+                catch { } //Ignore all errors in logout.
             }
             catch (Exception ex)
             {
@@ -297,7 +306,7 @@ namespace Acumatica.DeviceHub
             Properties.Settings.Default.Queues = JsonConvert.SerializeObject(_queues);
             Properties.Settings.Default.ScaleID = acumaticaScaleIDTextBox.Text;
 
-            if(scalesDropDown.SelectedItem == null)
+            if (scalesDropDown.SelectedItem == null)
             {
                 Properties.Settings.Default.ScaleDeviceVendorId = 0;
                 Properties.Settings.Default.ScaleDeviceProductId = 0;
@@ -310,25 +319,25 @@ namespace Acumatica.DeviceHub
             }
 
             Properties.Settings.Default.Save();
-            
+
             this.DialogResult = DialogResult.OK;
         }
-        
+
 
         private void queueList_SelectedIndexChanged(object sender, EventArgs e)
         {
             SetControlsState();
 
             var selectedItem = queueList.SelectedItem as PrintQueue;
-            if(selectedItem != null)
+            if (selectedItem != null)
             {
                 queueName.Text = selectedItem.QueueName;
                 printerCombo.SelectedItem = selectedItem.PrinterName;
                 rawModeCheckbox.Checked = selectedItem.RawMode;
                 paperSizeCombo.SelectedValue = selectedItem.PaperSize;
                 paperSourceCombo.SelectedValue = selectedItem.PaperSource;
-                
-                switch(selectedItem.Orientation)
+
+                switch (selectedItem.Orientation)
                 {
                     case PrintQueue.PrinterOrientation.Automatic:
                         orientationAutomatic.Checked = true;
@@ -366,7 +375,7 @@ namespace Acumatica.DeviceHub
             queueList.Items.Remove(queueList.SelectedItem);
             SetControlsState();
         }
-        
+
         private void printerCombo_SelectedIndexChanged(object sender, EventArgs e)
         {
             var selectedItem = queueList.SelectedItem as PrintQueue;
@@ -377,8 +386,8 @@ namespace Acumatica.DeviceHub
 
             // Retrieve paper sizes and sources from printer settings
             var printerSettings = new System.Drawing.Printing.PrinterSettings();
-            printerSettings.PrinterName = (string) printerCombo.SelectedItem;
-            
+            printerSettings.PrinterName = (string)printerCombo.SelectedItem;
+
             var sizes = new List<PaperSize>();
             sizes.Add(new PaperSize() { PaperName = "<Printer Default>", RawKind = PrintQueue.PrinterDefault });
             foreach (PaperSize size in printerSettings.PaperSizes)
@@ -388,7 +397,7 @@ namespace Acumatica.DeviceHub
             paperSizeCombo.DataSource = sizes;
 
             var bins = new List<PaperSource>();
-            bins.Add(new PaperSource() { SourceName = "<Printer Default>", RawKind = PrintQueue.PrinterDefault } );
+            bins.Add(new PaperSource() { SourceName = "<Printer Default>", RawKind = PrintQueue.PrinterDefault });
             foreach (PaperSource bin in printerSettings.PaperSources)
             {
                 bins.Add(bin);
@@ -421,7 +430,7 @@ namespace Acumatica.DeviceHub
             var selectedItem = queueList.SelectedItem as PrintQueue;
             if (selectedItem != null)
             {
-                selectedItem.PaperSize = (int) paperSizeCombo.SelectedValue;
+                selectedItem.PaperSize = (int)paperSizeCombo.SelectedValue;
             }
         }
 
@@ -436,8 +445,8 @@ namespace Acumatica.DeviceHub
 
         private void orientationDefault_CheckedChanged(object sender, EventArgs e)
         {
-            if(orientationAutomatic.Checked)
-            { 
+            if (orientationAutomatic.Checked)
+            {
                 var selectedItem = queueList.SelectedItem as PrintQueue;
                 if (selectedItem != null)
                 {
@@ -474,6 +483,13 @@ namespace Acumatica.DeviceHub
         {
             //Force refresh of text in listbox.
             queueList.Items[queueList.SelectedIndex] = queueList.SelectedItem;
+        }
+
+        private void showAllDevicesCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            scalesDropDown.DataSource = null;
+            scalesDropDown.Items.Clear();
+            InitUsbScaleList();
         }
     }
 }
