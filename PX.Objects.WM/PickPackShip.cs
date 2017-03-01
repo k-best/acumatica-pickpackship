@@ -3,6 +3,7 @@ using System.Collections;
 using PX.Data;
 using PX.Objects.IN;
 using System.Collections.Generic;
+using PX.Common;
 using PX.Objects.AR;
 using PX.SM;
 using PX.Objects.CS;
@@ -47,7 +48,25 @@ namespace PX.Objects.SO
         public const string PackageComplete = "PC";
         public const string QuickPackage = "PQ";
     }
-    
+
+    public class ScanLog : IBqlTable
+    {
+        public abstract class logLineDate : IBqlField { }
+        [PXDBDateAndTime(InputMask = "dd-MM-yyyy HH:mm:ss", DisplayMask = "dd-MM-yyyy HH:mm:ss", IsKey = true)]
+        [PXUIField(DisplayName = "Time", Enabled = false)]
+        public virtual DateTime? LogLineDate { get; set; }
+
+        public abstract class logLine : IBqlField { }
+        [PXString(256, IsUnicode = true)]
+        [PXUIField(DisplayName = "Barcode", Enabled = false)]
+        public virtual string LogBarcode { get; set; }
+
+        public abstract class logMessage : IBqlField { }
+        [PXString(256, IsUnicode = true)]
+        [PXUIField(DisplayName = "Message", Enabled = false)]
+        public virtual string LogMessage { get; set; }
+    }
+
     public class PickPackInfo : IBqlTable
     {
         public abstract class shipmentNbr : IBqlField { }
@@ -144,6 +163,7 @@ namespace PX.Objects.SO
         public PXSelect<SOShipLineSplit, Where<SOShipLineSplit.shipmentNbr, Equal<Current<SOShipLinePick.shipmentNbr>>, And<SOShipLineSplit.lineNbr, Equal<Current<SOShipLinePick.lineNbr>>>>> Splits;
         public PXSelect<SOPackageDetailPick, Where<SOPackageDetailPick.shipmentNbr, Equal<Current<SOShipment.shipmentNbr>>>> Packages;
         public PXSelect<SOPackageDetailSplit, Where<SOPackageDetailSplit.shipmentNbr, Equal<Current<SOPackageDetailPick.shipmentNbr>>, And<SOPackageDetailSplit.lineNbr, Equal<Current<SOPackageDetailPick.lineNbr>>>>> PackageSplits;
+        public PXSelect<ScanLog> ScanLogs;
 
         public PickPackShip()
         {
@@ -162,6 +182,9 @@ namespace PX.Objects.SO
             Splits.Cache.AllowDelete = false;
             Splits.Cache.AllowInsert = false;
             Splits.Cache.AllowUpdate = false;
+            ScanLogs.Cache.AllowDelete = false;
+            ScanLogs.Cache.AllowInsert = false;
+            ScanLogs.Cache.AllowUpdate = false;
             Packages.Cache.AllowInsert = this.Shipment.Current != null;
 
             var doc = this.Document.Current;
@@ -204,7 +227,15 @@ namespace PX.Objects.SO
             PXUIFieldAttribute.SetEnabled(sender, e.Row, false);
             PXUIFieldAttribute.SetEnabled<SOShipLinePick.pickedQty>(sender, e.Row, true);
         }
-        
+
+        protected IEnumerable scanLogs()
+        {
+            foreach (ScanLog row in ScanLogs.Cache.Cached)
+            {
+                yield return row;
+            }
+        }
+
         protected IEnumerable splits()
         {
             //We only use this view as a container for picked lot/serial numbers. We don't care about what's in the DB for this shipment.
@@ -286,6 +317,8 @@ namespace PX.Objects.SO
                         ProcessWeight(doc.Barcode);
                         break;
                 }
+
+                InsertScanLog();
             }
 
             doc.Barcode = String.Empty;
@@ -425,6 +458,7 @@ namespace PX.Objects.SO
             this.Document.Current.CurrentPackageLineNbr = null;
             this.Transactions.Cache.Clear();
             this.Splits.Cache.Clear();
+            this.ScanLogs.Cache.Clear();
             this.Packages.Cache.Clear();
             this.PackageSplits.Cache.Clear();
         }
@@ -518,6 +552,18 @@ namespace PX.Objects.SO
 
             //TODO: This block of code is identical to the end of ProcessItemBarcode and ProcessLotSerialBarcode
             ProcessPick();
+        }
+        
+        protected virtual void InsertScanLog()
+        {
+            const int maxCharLength = 256;
+            var doc = this.Document.Current;
+            
+            ScanLog scanLog = (ScanLog)this.ScanLogs.Cache.CreateInstance();
+            scanLog.LogLineDate = PXTimeZoneInfo.Now;
+            scanLog.LogBarcode = doc.Barcode.Length <= maxCharLength ? doc.Barcode : doc.Barcode.Substring(0, maxCharLength);
+            scanLog.LogMessage = doc.Message.Length <= maxCharLength ? doc.Message : doc.Message.Substring(0, maxCharLength);
+            ScanLogs.Cache.Insert(scanLog);
         }
 
         protected virtual bool IsLocationRequired()
