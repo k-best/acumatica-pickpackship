@@ -57,11 +57,11 @@
             this.addPrintQueue = new System.Windows.Forms.Button();
             this.queueList = new System.Windows.Forms.ListBox();
             this.tabPage3 = new System.Windows.Forms.TabPage();
+            this.showAllDevicesCheckBox = new System.Windows.Forms.CheckBox();
             this.label8 = new System.Windows.Forms.Label();
             this.acumaticaScaleIDTextBox = new System.Windows.Forms.TextBox();
             this.label7 = new System.Windows.Forms.Label();
             this.scalesDropDown = new System.Windows.Forms.ComboBox();
-            this.showAllDevicesCheckBox = new System.Windows.Forms.CheckBox();
             this.mainTab.SuspendLayout();
             this.tabPage1.SuspendLayout();
             this.tabPage2.SuspendLayout();
@@ -284,6 +284,13 @@
             this.tabPage3.Name = "tabPage3";
             this.tabPage3.UseVisualStyleBackColor = true;
             // 
+            // showAllDevicesCheckBox
+            // 
+            resources.ApplyResources(this.showAllDevicesCheckBox, "showAllDevicesCheckBox");
+            this.showAllDevicesCheckBox.Name = "showAllDevicesCheckBox";
+            this.showAllDevicesCheckBox.UseVisualStyleBackColor = true;
+            this.showAllDevicesCheckBox.CheckedChanged += new System.EventHandler(this.showAllDevicesCheckBox_CheckedChanged);
+            // 
             // label8
             // 
             resources.ApplyResources(this.label8, "label8");
@@ -305,13 +312,6 @@
             this.scalesDropDown.FormattingEnabled = true;
             resources.ApplyResources(this.scalesDropDown, "scalesDropDown");
             this.scalesDropDown.Name = "scalesDropDown";
-            // 
-            // showAllDevicesCheckBox
-            // 
-            resources.ApplyResources(this.showAllDevicesCheckBox, "showAllDevicesCheckBox");
-            this.showAllDevicesCheckBox.Name = "showAllDevicesCheckBox";
-            this.showAllDevicesCheckBox.UseVisualStyleBackColor = true;
-            this.showAllDevicesCheckBox.CheckedChanged += new System.EventHandler(this.showAllDevicesCheckBox_CheckedChanged);
             // 
             // Configuration
             // 
