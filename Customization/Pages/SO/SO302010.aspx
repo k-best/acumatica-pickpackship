@@ -77,7 +77,7 @@
             <px:PXCheckBox ID="edLotSerialSearch" runat="server" DataField="LotSerialSearch" />
             <px:PXLayoutRule runat="server" StartColumn="True" LabelsWidth="S" ControlSize="L" ColumnWidth="M" />
             <px:PXLayoutRule runat="server" ColumnSpan="2" />
-            <px:PXTextEdit ID="edMessage" runat="server" DataField="Message" SuppressLabel="true" />
+            <px:PXTextEdit ID="edMessage" runat="server" DataField="Message" Width="640px" Style="font-size: 12pt; font-weight: bold;" SuppressLabel="true" />
             <px:PXNumberEdit ID="edQuantity" runat="server" DataField="Quantity" />
             <px:PXLayoutRule runat="server" StartColumn="True" LabelsWidth="S" ControlSize="M" />
             <px:PXGroupBox ID="gbMode" runat="server" Caption="Scan Mode" DataField="ScanMode" RenderSimple="True" RenderStyle="Simple">
