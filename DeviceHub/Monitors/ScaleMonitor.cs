@@ -110,9 +110,9 @@ namespace Acumatica.DeviceHub
                             LogoutFromAcumatica();
                             break;
                         }
-
-                        decimal currentWeight = 0;
-                        WeightUnits weightUnit;
+                        
+                        decimal readWeight = 0m;
+                        WeightUnits weightUnit = WeightUnits.None;
                         HidDevice hidDevice = HidDevices.Enumerate(Properties.Settings.Default.ScaleDeviceVendorId, Properties.Settings.Default.ScaleDeviceProductId).FirstOrDefault();
 
                         if (hidDevice != null)
@@ -121,18 +121,21 @@ namespace Acumatica.DeviceHub
                             {
                                 hidDevice.OpenDevice();
                                 WaitForConnection(hidDevice);
-                                currentWeight = ReadWeight(hidDevice, out weightUnit);
+                                readWeight = ReadWeight(hidDevice, out weightUnit);
                                 hidDevice.CloseDevice();
                             }
 
-                            _progress.Report(new MonitorMessage(String.Format(Strings.ScaleWeightNotify, currentWeight, WeightUnitToStringAbbreviation[weightUnit])));
-
-                            if (_lastWeightSentToAcumatica != currentWeight)
+                            if (!weightUnit.Equals(WeightUnits.None))
                             {
-                                if (_screen != null || LoginToAcumatica())
+                                _progress.Report(new MonitorMessage(String.Format(Strings.ScaleWeightNotify, readWeight, WeightUnitToStringAbbreviation[weightUnit])));
+
+                                if (_lastWeightSentToAcumatica != readWeight)
                                 {
-                                    UpdateWeight(Properties.Settings.Default.ScaleID, ConvertWeightToKilogram(currentWeight, weightUnit));
-                                    _lastWeightSentToAcumatica = currentWeight;
+                                    if (_screen != null || LoginToAcumatica())
+                                    {
+                                        UpdateWeight(Properties.Settings.Default.ScaleID, ConvertWeightToKilogram(readWeight, weightUnit));
+                                        _lastWeightSentToAcumatica = readWeight;
+                                    }
                                 }
                             }
                         }
