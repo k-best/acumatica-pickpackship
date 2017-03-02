@@ -1,0 +1,21 @@
+0922  Dymo-CoStar Corp.
+	0007  LabelWriter 330
+	0009  LabelWriter 310
+	0019  LabelWriter 400
+	001a  LabelWriter 400 Turbo
+	0020  LabelWriter 450
+	1001  LabelManager PnP
+	8003  Portable USB Scale M10
+	8004  Digital Postal Scale M25
+0b67  Fairbanks Scales
+	555e  SCB-R9000
+0eb8  Mettler Toledo
+	2200  Ariva Scale
+	8009  S250 Scale
+	f000  PS60 Scale
+1446  X.J.GROUP
+	6a73  Stamps.com Model 510 5LB Scale
+	6a75  Stamps.com Model 2510 25LB Scale
+	6a78  DYMO Endicia 75lb Digital Scale
+2233  RadioShack Corporation
+	6323  USB Electronic Scale
