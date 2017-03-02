@@ -179,17 +179,19 @@ namespace Acumatica.DeviceHub
             const string doubleSpace = "  ";
             const string hexadecimalFormat = "X";
             const string namespaceSeparator = ".";
-            const string usbIdList = "usb.ids";
+            const string hidDeviceList = "hid_device_list.txt";
             const string vendorProductSeparator = " - ";
+            const int fieldLength = 4;
+            const char hexPadding = '0';
             string line;
             string vendor;
 
             // Convert ids to hexadecimal
-            string vendorIdHex = vendorId.ToString(hexadecimalFormat);
-            string productIdHex = productId.ToString(hexadecimalFormat);
+            string vendorIdHex = vendorId.ToString(hexadecimalFormat).ToLowerInvariant().PadLeft(fieldLength, hexPadding);
+            string productIdHex = productId.ToString(hexadecimalFormat).ToLowerInvariant().PadLeft(fieldLength, hexPadding);
 
             // Read from static list
-            using (StreamReader streamReader = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream(String.Concat(GetType().Namespace, namespaceSeparator, usbIdList))))
+            using (StreamReader streamReader = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream(String.Concat(GetType().Namespace, namespaceSeparator, hidDeviceList))))
             {
                 // Search vendor
                 while ((line = streamReader.ReadLine()) != null)
