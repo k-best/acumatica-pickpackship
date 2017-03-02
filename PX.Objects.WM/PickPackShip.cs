@@ -331,7 +331,7 @@ namespace PX.Objects.SO
             var commands = barcode.Split(ScanCommands.CommandChar);
            
             int quantity = 0;
-            if(int.TryParse(commands[1], out quantity))
+            if(int.TryParse(commands[1].ToUpperInvariant(), out quantity))
             {
                 if (IsQuantityEnabled())
                 {
@@ -352,7 +352,7 @@ namespace PX.Objects.SO
             }
             else
             {
-                switch(commands[1])
+                switch(commands[1].ToUpperInvariant())
                 {
                     case ScanCommands.Add:
                         this.Document.Current.ScanMode = ScanModes.Add;
