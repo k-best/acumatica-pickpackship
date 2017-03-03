@@ -29,6 +29,7 @@ namespace PX.Objects.WM
         #endregion
 
         #region Lot/Serial
+        public const string LotExpired = "Lot {0} is expired.";
         public const string LotInvalidQuantity = "Lot/serial {0} not found in sufficient quantity on shipment.";
         public const string LotMissing = "Lot/serial {0} not found in database.";
         public const string LotNotSupported = "Lot/serial numbers that are assigned when used and which require tracking of expiration date are not supported with this tool.";
