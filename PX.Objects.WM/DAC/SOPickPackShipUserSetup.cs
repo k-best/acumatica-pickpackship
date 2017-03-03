@@ -7,7 +7,7 @@ namespace PX.SM
     public class SOPickPackShipUserSetup : IBqlTable
     {
         public abstract class userID : PX.Data.IBqlField { }
-        [PXDBGuid]
+        [PXDBGuid(IsKey = true)]
         [PXDefault(typeof(Search<Users.pKID, Where<Users.pKID, Equal<Current<AccessInfo.userID>>>>))]
         [PXUIField(DisplayName = "User")]
         public virtual Guid? UserID { get; set; }
