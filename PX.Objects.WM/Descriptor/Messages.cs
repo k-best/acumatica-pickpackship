@@ -64,6 +64,7 @@ namespace PX.Objects.WM
         public const string PackageRemoveInventoryError = "The system was not able to locate package details for the item you just removed.";
         public const string PackageLineNbrMissing = "Unable to find package line {0} - was it deleted manually?";
         public const string PackageWeightPrompt = "Please enter the total weight of this package and press enter.";
+        public const string WrongWeightUnit = "Wrong weight unit: {0}, only KG and LB are supported.";
         #endregion
 
         #region Scale

@@ -179,7 +179,16 @@ namespace Acumatica.DeviceHub
                 weight = (highOrderbyte + lowOrderbyte) * (decimal)Math.Pow(decimalBase, dataScaling);
 
                 // Assign weight unit
-                weightUnit = (WeightUnits)data[(int)ScaleData.WeightUnit];
+                byte weightUnitCode = data[(int)ScaleData.WeightUnit];
+
+                if (Enum.IsDefined(typeof(WeightUnits), weightUnitCode))
+                {
+                    weightUnit = (WeightUnits)weightUnitCode;
+                }
+                else
+                {
+                    throw new Exception(string.Format(Strings.InvalidScaleWeightUnit, weightUnitCode));
+                }
             }
 
             return weight;

@@ -129,6 +129,9 @@
   <data name="FileIdMissingWarning" xml:space="preserve">
     <value>Queue {0} - print job {1} has no 'FILEID' parameter configured. The print job will be discarded.</value>
   </data>
+  <data name="InvalidScaleWeightUnit" xml:space="preserve">
+    <value>Invalid scale weight unit code: {0}.</value>
+  </data>
   <data name="LoginMissingPrompt" xml:space="preserve">
     <value>Please enter your login.</value>
   </data>
@@ -203,7 +206,6 @@
   </data>
   <data name="ScaleOverweightError" xml:space="preserve">
     <value>Weight exceeds scale capacity.</value>
-    <comment> </comment>
   </data>
   <data name="ScaleWeightError" xml:space="preserve">
     <value>An error occured while updating the scale weight: {0}</value>
