@@ -97,6 +97,15 @@ namespace Acumatica.DeviceHub.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Invalid scale weight unit code: {0}..
+        /// </summary>
+        internal static string InvalidScaleWeightUnit {
+            get {
+                return ResourceManager.GetString("InvalidScaleWeightUnit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Please enter your login..
         /// </summary>
         internal static string LoginMissingPrompt {

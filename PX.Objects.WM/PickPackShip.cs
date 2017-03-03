@@ -151,6 +151,12 @@ namespace PX.Objects.SO
             AllItems
         }
 
+        public readonly Dictionary<string, decimal> kgToWeightUnit = new Dictionary<string, decimal>
+        {
+            { "KG", 1m },
+            { "LB", 0.453592m }
+        };
+
         public const double ScaleWeightValiditySeconds = 30;
 
         public PXSetup<INSetup> Setup;
@@ -437,11 +443,16 @@ namespace PX.Objects.SO
 
         protected virtual decimal ConvertKilogramToWeightUnit(decimal weight, string weightUnit)
         {
-            return weight / new Dictionary<string, decimal>
+            decimal conversionFactor;
+
+            if (kgToWeightUnit.TryGetValue(weightUnit.Trim().ToUpperInvariant(), out conversionFactor))
             {
-                { "KG", 1m },
-                { "LB", 0.453592m }
-            }[weightUnit.Trim().ToUpperInvariant()];
+                return weight / conversionFactor;
+            }
+            else
+            {
+                throw new PXException(WM.Messages.WrongWeightUnit, weightUnit);
+            }
         }
 
         protected virtual void ClearScreen(bool clearShipmentNbr)
