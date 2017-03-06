@@ -477,8 +477,9 @@ namespace PX.Objects.SO
             if (doc.LotSerialSearch == true)
             {
                 INLotSerialStatus lotSerialStatus = GetLotSerialStatus(barcode);
+                INLotSerClass lotSerialClass = (lotSerialStatus != null ? GetLotSerialClass(lotSerialStatus.InventoryID, lotSerialStatus.SubItemID) : null);
 
-                if (ValidateLotSerialStatus(barcode, lotSerialStatus))
+                if (ValidateLotSerialStatus(barcode, lotSerialStatus, lotSerialClass))
                 {
                     SetCurrentInventoryIDByLotSerial(barcode, lotSerialStatus);
                 }
@@ -521,11 +522,12 @@ namespace PX.Objects.SO
         {
             var doc = this.Document.Current;
 
-            //TODO: For items with lot/serial assigned at INLotSerAssign.WhenReceived, we could validate right away if 
-            //this lot/serial number exist. We could also verify against validation mask for lot/serial which are INLotSerAssign.WhenUsed.
+            //TODO: For items with lot/serial assigned at INLotSerAssign.WhenUsed,
+            // we could verify lot/serial against validation mask.
             INLotSerialStatus lotSerialStatus = GetLotSerialStatus(barcode);
-
-            if (ValidateLotSerialStatus(barcode, lotSerialStatus))
+            INLotSerClass lotSerialClass = GetLotSerialClass(doc.CurrentInventoryID, doc.CurrentSubID);
+            
+            if (ValidateLotSerialStatus(barcode, lotSerialStatus, lotSerialClass))
             {
                 doc.CurrentLotSerialNumber = barcode;
 
@@ -759,7 +761,21 @@ namespace PX.Objects.SO
             package.Weight = weight;
             this.Packages.Update(package);
         }
-
+        
+        protected virtual PXResult<INLotSerClass> GetLotSerialClass(int? inventoryID, int? subItemID)
+        {
+            return  PXSelectJoin<INLotSerClass,
+                    InnerJoin<InventoryItem, On<InventoryItem.inventoryID, Equal<Required<InventoryItem.inventoryID>>,
+                                             And<InventoryItem.lotSerClassID, Equal<INLotSerClass.lotSerClassID>,
+                                             And<InventoryItem.itemStatus, NotEqual<InventoryItemStatus.inactive>,
+                                             And<InventoryItem.itemStatus, NotEqual<InventoryItemStatus.noPurchases>,
+                                             And<InventoryItem.itemStatus, NotEqual<InventoryItemStatus.markedForDeletion>>>>>>,
+                    InnerJoin<INSubItem, On<INSubItem.subItemID, Equal<Required<INSubItem.subItemID>>>>>>
+                    .SelectSingleBound(this, 
+                                       new object[] { this.Document.Current }, 
+                                       inventoryID, 
+                                       subItemID);
+        }
 
         protected virtual INLotSerialStatus GetLotSerialStatus(string barcode)
         {
@@ -792,21 +808,28 @@ namespace PX.Objects.SO
             doc.CurrentLotSerialNumber = barcode;
         }
 
-        protected virtual bool ValidateLotSerialStatus(string barcode, INLotSerialStatus lotSerialStatus)
+        protected virtual bool ValidateLotSerialStatus(string barcode, INLotSerialStatus lotSerialStatus, INLotSerClass lotSerialClass)
         {
             var doc = this.Document.Current;
-
-            if (lotSerialStatus == null)
+            
+            if (lotSerialClass != null &&
+                lotSerialClass.LotSerAssign != null &&
+                lotSerialClass.LotSerAssign.Equals(INLotSerAssign.WhenReceived))
             {
-                doc.Status = ScanStatuses.Error;
-                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotMissing, barcode);
-                return false;
-            }
-            else if (IsLotExpired(lotSerialStatus))
-            {
-                doc.Status = ScanStatuses.Error;
-                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotExpired, barcode);
-                return false;
+                if (lotSerialStatus == null)
+                {
+                    doc.Status = ScanStatuses.Error;
+                    doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotMissing, barcode);
+                    return false;
+                }
+                else if (lotSerialClass.LotSerTrackExpiration.HasValue &&
+                         lotSerialClass.LotSerTrackExpiration.Value &&
+                         IsLotExpired(lotSerialStatus))
+                {
+                    doc.Status = ScanStatuses.Error;
+                    doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotExpired, barcode);
+                    return false;
+                }
             }
 
             return true;
