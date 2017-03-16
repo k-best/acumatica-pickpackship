@@ -128,6 +128,10 @@ namespace PX.Objects.SO
         [PXString]
         public virtual string CurrentLotSerialNumber { get; set; }
 
+        public abstract class currentExpirationDate : IBqlField { }
+        [PXDate]
+        public virtual DateTime? CurrentExpirationDate { get; set; }
+
         public abstract class currentPackageLineNbr : IBqlField { }
         [PXInt]
         public virtual int? CurrentPackageLineNbr { get; set; }
@@ -462,6 +466,7 @@ namespace PX.Objects.SO
             this.Document.Current.CurrentSubID = null;
             this.Document.Current.CurrentLocationID = null;
             this.Document.Current.CurrentLotSerialNumber = null;
+            this.Document.Current.CurrentExpirationDate = null;
             this.Document.Current.CurrentPackageLineNbr = null;
             this.Transactions.Cache.Clear();
             this.Splits.Cache.Clear();
@@ -481,7 +486,7 @@ namespace PX.Objects.SO
 
                 if (ValidateLotSerialStatus(barcode, lotSerialStatus, lotSerialClass))
                 {
-                    SetCurrentInventoryIDByLotSerial(barcode, lotSerialStatus);
+                    SetCurrentInventoryIDByLotSerial(lotSerialStatus);
                 }
                 else
                 {
@@ -522,16 +527,15 @@ namespace PX.Objects.SO
         {
             var doc = this.Document.Current;
 
-            //TODO: For items with lot/serial assigned at INLotSerAssign.WhenUsed,
-            // we could verify lot/serial against validation mask.
+            //TODO: For items with lot/serial assigned at INLotSerAssign.WhenUsed, we could verify lot/serial against validation mask.
             INLotSerialStatus lotSerialStatus = GetLotSerialStatus(barcode);
             INLotSerClass lotSerialClass = GetLotSerialClass(doc.CurrentInventoryID, doc.CurrentSubID);
             
             if (ValidateLotSerialStatus(barcode, lotSerialStatus, lotSerialClass))
             {
                 doc.CurrentLotSerialNumber = barcode;
+                doc.CurrentExpirationDate = lotSerialStatus.ExpireDate;
 
-                //TODO: This block of code is identical to the end of ProcessItemBarcode - would state machine transition help?
                 if (IsLocationRequired())
                 {
                     doc.Status = ScanStatuses.Scan;
@@ -561,7 +565,6 @@ namespace PX.Objects.SO
 
             doc.CurrentLocationID = location.LocationID;
 
-            //TODO: This block of code is identical to the end of ProcessItemBarcode and ProcessLotSerialBarcode
             ProcessPick();
         }
         
@@ -616,7 +619,7 @@ namespace PX.Objects.SO
                 {
                     if (lsclass.LotSerAssign == INLotSerAssign.WhenUsed && lsclass.LotSerTrackExpiration == true)
                     {
-                        //TODO: Implement support for this? Not even clear if Acumatica supports that.
+                        //TODO: Implement support for this
                         throw new NotImplementedException(WM.Messages.LotNotSupported);
                     }
 
@@ -639,7 +642,7 @@ namespace PX.Objects.SO
         {
             var doc = this.Document.Current;
 
-            if (Document.Current.ScanMode == ScanModes.Add && AddPick(doc.CurrentInventoryID, doc.CurrentSubID, doc.Quantity, doc.CurrentLocationID, doc.CurrentLotSerialNumber))
+            if (Document.Current.ScanMode == ScanModes.Add && AddPick(doc.CurrentInventoryID, doc.CurrentSubID, doc.Quantity, doc.CurrentLocationID, doc.CurrentLotSerialNumber, doc.CurrentExpirationDate))
             {
                 doc.Status = ScanStatuses.Scan;
                 doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryAdded, Document.Current.Quantity, ((InventoryItem)PXSelectorAttribute.Select<PickPackInfo.currentInventoryID>(this.Document.Cache, doc)).InventoryCD.TrimEnd());
@@ -799,19 +802,20 @@ namespace PX.Objects.SO
             return lotSerialStatus;
         }
 
-        protected virtual void SetCurrentInventoryIDByLotSerial(string barcode, INLotSerialStatus lotSerialStatus)
+        protected virtual void SetCurrentInventoryIDByLotSerial(INLotSerialStatus lotSerialStatus)
         {
             var doc = this.Document.Current;
             doc.CurrentInventoryID = lotSerialStatus.InventoryID;
             doc.CurrentSubID = lotSerialStatus.SubItemID;
             doc.CurrentLocationID = lotSerialStatus.LocationID;
-            doc.CurrentLotSerialNumber = barcode;
+            doc.CurrentLotSerialNumber = lotSerialStatus.LotSerialNbr;
+            doc.CurrentExpirationDate = lotSerialStatus.ExpireDate;
         }
 
         protected virtual bool ValidateLotSerialStatus(string barcode, INLotSerialStatus lotSerialStatus, INLotSerClass lotSerialClass)
         {
             var doc = this.Document.Current;
-            
+
             if (lotSerialClass != null &&
                 lotSerialClass.LotSerAssign != null &&
                 lotSerialClass.LotSerAssign.Equals(INLotSerAssign.WhenReceived))
@@ -840,7 +844,7 @@ namespace PX.Objects.SO
             return lotSerialStatus != null && lotSerialStatus.ExpireDate <= PXTimeZoneInfo.Now;
         }
 
-        protected virtual bool AddPick(int? inventoryID, int? subID, decimal? quantity, int? locationID, string lotSerialNumber)
+        protected virtual bool AddPick(int? inventoryID, int? subID, decimal? quantity, int? locationID, string lotSerialNumber, DateTime? expirationDate)
         {
             SOShipLinePick firstMatchingLine = null;
             foreach (SOShipLinePick pickLine in this.Transactions.Select())
@@ -854,7 +858,7 @@ namespace PX.Objects.SO
                 pickLine.PickedQty = pickLine.PickedQty.GetValueOrDefault() + quantityForCurrentPickLine;
                 this.Transactions.Update(pickLine);
                 
-                AddPickToCurrentLineSplits(locationID, lotSerialNumber, quantityForCurrentPickLine);
+                AddPickToCurrentLineSplits(locationID, lotSerialNumber, expirationDate, quantityForCurrentPickLine);
 
                 quantity = quantity - quantityForCurrentPickLine;
             
@@ -869,7 +873,7 @@ namespace PX.Objects.SO
                 //All the lines are already filled; just over-pick the first one.
                 firstMatchingLine.PickedQty = firstMatchingLine.PickedQty.GetValueOrDefault() + quantity;
                 this.Transactions.Update(firstMatchingLine);
-                AddPickToCurrentLineSplits(locationID, lotSerialNumber, quantity.GetValueOrDefault());
+                AddPickToCurrentLineSplits(locationID, lotSerialNumber, expirationDate, quantity.GetValueOrDefault());
 
                 return true;
             }
@@ -880,7 +884,7 @@ namespace PX.Objects.SO
             }
         }
 
-        protected virtual void AddPickToCurrentLineSplits(int? locationID, string lotSerialNumber, decimal quantity)
+        protected virtual void AddPickToCurrentLineSplits(int? locationID, string lotSerialNumber, DateTime? expirationDate, decimal quantity)
         {
             if (String.IsNullOrEmpty(lotSerialNumber))
             {
@@ -901,7 +905,7 @@ namespace PX.Objects.SO
 
                 if(!foundMatchingSplit)
                 {
-                    InsertSplit(quantity, locationID, lotSerialNumber);
+                    InsertSplit(quantity, locationID, lotSerialNumber, expirationDate);
                 }
             }
             else
@@ -909,17 +913,18 @@ namespace PX.Objects.SO
                 //Each lot/serial split needs to be inserted as a separate line.
                 for (int i = 0; i < quantity; i++)
                 {
-                    InsertSplit(1, locationID, lotSerialNumber);
+                    InsertSplit(1, locationID, lotSerialNumber, expirationDate);
                 }
             }
         }
 
-        protected virtual void InsertSplit(decimal quantity, int? locationID, string lotSerialNumber)
+        protected virtual void InsertSplit(decimal quantity, int? locationID, string lotSerialNumber, DateTime? expirationDate)
         {
             var split = (SOShipLineSplit)this.Splits.Cache.CreateInstance();
             split.Qty = quantity;
             split.LocationID = locationID;
             split.LotSerialNbr = lotSerialNumber;
+            split.ExpireDate = expirationDate;
             this.Splits.Insert(split);
 
             if(this.Document.Current.CurrentPackageLineNbr != null)
