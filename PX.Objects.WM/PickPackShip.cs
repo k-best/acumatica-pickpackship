@@ -7,6 +7,7 @@ using PX.Common;
 using PX.Objects.AR;
 using PX.SM;
 using PX.Objects.CS;
+using System.Globalization;
 
 namespace PX.Objects.SO
 {
@@ -1195,6 +1196,24 @@ namespace PX.Objects.SO
             {
                 this.Document.Current.CurrentPackageLineNbr = null;
                 this.Document.Update(this.Document.Current);
+            }
+        }
+        
+        protected void SOShipLinePick_PickedQty_FieldUpdated(PXCache sender, PXFieldUpdatedEventArgs e)
+        {
+            SOShipLinePick soShipLinePick = e.Row as SOShipLinePick;
+
+            if (soShipLinePick != null)
+            {
+                const string quantityDisplayFormat = "{0:0.00}";
+
+                sender.RaiseExceptionHandling<SOShipLinePick.pickedQty>(soShipLinePick, 
+                                                                        soShipLinePick.PickedQty,
+                                                                        new PXSetPropertyException<SOShipLinePick.pickedQty>(PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryUpdated,
+                                                                                                                                                               string.Format(CultureInfo.InvariantCulture, quantityDisplayFormat, e.OldValue != null ? e.OldValue : 0M),
+                                                                                                                                                               string.Format(CultureInfo.InvariantCulture, quantityDisplayFormat, soShipLinePick.PickedQty.HasValue ? soShipLinePick.PickedQty.Value : 0M),
+                                                                                                                                                               soShipLinePick.UOM.Trim()),
+                                                                                                                             PXErrorLevel.RowInfo));
             }
         }
 
