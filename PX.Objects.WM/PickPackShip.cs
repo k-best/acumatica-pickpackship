@@ -476,10 +476,15 @@ namespace PX.Objects.SO
             
             if (doc.LotSerialSearch == true)
             {
-                if (!SetCurrentInventoryIDByLotSerial(barcode))
+                INLotSerialStatus lotSerialStatus = GetLotSerialStatus(barcode);
+                INLotSerClass lotSerialClass = (lotSerialStatus != null ? GetLotSerialClass(lotSerialStatus.InventoryID, lotSerialStatus.SubItemID) : null);
+
+                if (ValidateLotSerialStatus(barcode, lotSerialStatus, lotSerialClass))
                 {
-                    doc.Status = ScanStatuses.Error;
-                    doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotMissing, barcode);
+                    SetCurrentInventoryIDByLotSerial(barcode, lotSerialStatus);
+                }
+                else
+                {
                     return;
                 }
             }
@@ -517,20 +522,26 @@ namespace PX.Objects.SO
         {
             var doc = this.Document.Current;
 
-            //TODO: For items with lot/serial assigned at INLotSerAssign.WhenReceived, we could validate right away if 
-            //this lot/serial number exist. We could also verify against validation mask for lot/serial which are INLotSerAssign.WhenUsed.
-            doc.CurrentLotSerialNumber = barcode;
-
-            //TODO: This block of code is identical to the end of ProcessItemBarcode - would state machine transition help?
-            if (IsLocationRequired())
+            //TODO: For items with lot/serial assigned at INLotSerAssign.WhenUsed,
+            // we could verify lot/serial against validation mask.
+            INLotSerialStatus lotSerialStatus = GetLotSerialStatus(barcode);
+            INLotSerClass lotSerialClass = GetLotSerialClass(doc.CurrentInventoryID, doc.CurrentSubID);
+            
+            if (ValidateLotSerialStatus(barcode, lotSerialStatus, lotSerialClass))
             {
-                doc.Status = ScanStatuses.Scan;
-                doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.LocationPrompt);
-                doc.ScanState = ScanStates.Location;
-                return;
-            }
+                doc.CurrentLotSerialNumber = barcode;
 
-            ProcessPick();
+                //TODO: This block of code is identical to the end of ProcessItemBarcode - would state machine transition help?
+                if (IsLocationRequired())
+                {
+                    doc.Status = ScanStatuses.Scan;
+                    doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.LocationPrompt);
+                    doc.ScanState = ScanStates.Location;
+                    return;
+                }
+
+                ProcessPick();
+            }
         }
 
         protected virtual void ProcessLocationBarcode(string barcode)
@@ -750,20 +761,34 @@ namespace PX.Objects.SO
             package.Weight = weight;
             this.Packages.Update(package);
         }
-
-        protected virtual bool SetCurrentInventoryIDByLotSerial(string barcode)
+        
+        protected virtual PXResult<INLotSerClass> GetLotSerialClass(int? inventoryID, int? subItemID)
         {
-            var doc = this.Document.Current;
-            INLotSerialStatus firstMatch = null;
+            return  PXSelectJoin<INLotSerClass,
+                    InnerJoin<InventoryItem, On<InventoryItem.inventoryID, Equal<Required<InventoryItem.inventoryID>>,
+                                             And<InventoryItem.lotSerClassID, Equal<INLotSerClass.lotSerClassID>,
+                                             And<InventoryItem.itemStatus, NotEqual<InventoryItemStatus.inactive>,
+                                             And<InventoryItem.itemStatus, NotEqual<InventoryItemStatus.noPurchases>,
+                                             And<InventoryItem.itemStatus, NotEqual<InventoryItemStatus.markedForDeletion>>>>>>,
+                    InnerJoin<INSubItem, On<INSubItem.subItemID, Equal<Required<INSubItem.subItemID>>>>>>
+                    .SelectSingleBound(this, 
+                                       new object[] { this.Document.Current }, 
+                                       inventoryID, 
+                                       subItemID);
+        }
 
-            foreach(INLotSerialStatus ls in PXSelect<INLotSerialStatus, 
-                Where<INLotSerialStatus.qtyOnHand, Greater<Zero>, 
-                And<INLotSerialStatus.siteID, Equal<Current<SOShipment.siteID>>,
-                And<INLotSerialStatus.lotSerialNbr, Equal<Required<INLotSerialStatus.lotSerialNbr>>>>>>.Select(this, barcode))
+        protected virtual INLotSerialStatus GetLotSerialStatus(string barcode)
+        {
+            INLotSerialStatus lotSerialStatus = null;
+
+            foreach (INLotSerialStatus ls in PXSelect<INLotSerialStatus,
+                                             Where<INLotSerialStatus.qtyOnHand, Greater<Zero>,
+                                             And<INLotSerialStatus.siteID, Equal<Current<SOShipment.siteID>>,
+                                             And<INLotSerialStatus.lotSerialNbr, Equal<Required<INLotSerialStatus.lotSerialNbr>>>>>>.Select(this, barcode))
             {
-                if(firstMatch == null)
+                if (lotSerialStatus == null)
                 {
-                    firstMatch = ls;
+                    lotSerialStatus = ls;
                 }
                 else
                 {
@@ -771,18 +796,48 @@ namespace PX.Objects.SO
                 }
             }
 
-            if(firstMatch == null)
+            return lotSerialStatus;
+        }
+
+        protected virtual void SetCurrentInventoryIDByLotSerial(string barcode, INLotSerialStatus lotSerialStatus)
+        {
+            var doc = this.Document.Current;
+            doc.CurrentInventoryID = lotSerialStatus.InventoryID;
+            doc.CurrentSubID = lotSerialStatus.SubItemID;
+            doc.CurrentLocationID = lotSerialStatus.LocationID;
+            doc.CurrentLotSerialNumber = barcode;
+        }
+
+        protected virtual bool ValidateLotSerialStatus(string barcode, INLotSerialStatus lotSerialStatus, INLotSerClass lotSerialClass)
+        {
+            var doc = this.Document.Current;
+            
+            if (lotSerialClass != null &&
+                lotSerialClass.LotSerAssign != null &&
+                lotSerialClass.LotSerAssign.Equals(INLotSerAssign.WhenReceived))
             {
-                return false;
+                if (lotSerialStatus == null)
+                {
+                    doc.Status = ScanStatuses.Error;
+                    doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotMissing, barcode);
+                    return false;
+                }
+                else if (lotSerialClass.LotSerTrackExpiration.HasValue &&
+                         lotSerialClass.LotSerTrackExpiration.Value &&
+                         IsLotExpired(lotSerialStatus))
+                {
+                    doc.Status = ScanStatuses.Error;
+                    doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotExpired, barcode);
+                    return false;
+                }
             }
-            else
-            {
-                doc.CurrentInventoryID = firstMatch.InventoryID;
-                doc.CurrentSubID = firstMatch.SubItemID;
-                doc.CurrentLocationID = firstMatch.LocationID;
-                doc.CurrentLotSerialNumber = barcode;
-                return true;
-            }
+
+            return true;
+        }
+
+        protected virtual bool IsLotExpired(INLotSerialStatus lotSerialStatus)
+        {
+            return lotSerialStatus != null && lotSerialStatus.ExpireDate <= PXTimeZoneInfo.Now;
         }
 
         protected virtual bool AddPick(int? inventoryID, int? subID, decimal? quantity, int? locationID, string lotSerialNumber)
