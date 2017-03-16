@@ -436,7 +436,7 @@ namespace PX.Objects.SO
                 doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageComplete, weight, Setup.Current.WeightUOM);
                 SetCurrentPackageWeight(weight);
                 doc.CurrentPackageLineNbr = null;
-                doc.ScanState = ScanStates.Item;
+                SetScanState(ScanStates.Item);
             }
             else
             {
@@ -507,7 +507,7 @@ namespace PX.Objects.SO
                 {
                     doc.Status = ScanStatuses.Scan;
                     doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.LotScanPrompt);
-                    doc.ScanState = ScanStates.LotSerialNumber;
+                    SetScanState(ScanStates.LotSerialNumber);
                     return;
                 }
             }
@@ -516,7 +516,7 @@ namespace PX.Objects.SO
             {
                 doc.Status = ScanStatuses.Scan;
                 doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.LocationPrompt);
-                doc.ScanState = ScanStates.Location;
+                SetScanState(ScanStates.Location);
                 return;
             }
 
@@ -540,7 +540,7 @@ namespace PX.Objects.SO
                 {
                     doc.Status = ScanStatuses.Scan;
                     doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.LocationPrompt);
-                    doc.ScanState = ScanStates.Location;
+                    SetScanState(ScanStates.Location);
                     return;
                 }
 
@@ -638,6 +638,27 @@ namespace PX.Objects.SO
             }
         }
 
+        protected virtual void SetScanState(string state)
+        {
+            var doc = this.Document.Current;
+
+            //Add any state transition logic to this switch case
+            switch (state)
+            {
+                case ScanStates.Item:
+                    doc.Quantity = 1;
+                    doc.ScanMode = ScanModes.Add;
+                    doc.CurrentInventoryID = null;
+                    doc.CurrentSubID = null;
+                    doc.CurrentLocationID = null;
+                    doc.CurrentLotSerialNumber = null;
+                    doc.CurrentExpirationDate = null;
+                    break;
+            }
+
+            this.Document.Current.ScanState = state;
+        }
+
         protected virtual void ProcessPick()
         {
             var doc = this.Document.Current;
@@ -646,16 +667,13 @@ namespace PX.Objects.SO
             {
                 doc.Status = ScanStatuses.Scan;
                 doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryAdded, Document.Current.Quantity, ((InventoryItem)PXSelectorAttribute.Select<PickPackInfo.currentInventoryID>(this.Document.Cache, doc)).InventoryCD.TrimEnd());
-                doc.Quantity = 1;
-                doc.ScanState = ScanStates.Item;
+                SetScanState(ScanStates.Item);
             }
             else if (Document.Current.ScanMode == ScanModes.Remove && RemovePick(doc.CurrentInventoryID, doc.CurrentSubID, doc.Quantity, doc.CurrentLocationID, doc.CurrentLotSerialNumber))
             {
                 doc.Status = ScanStatuses.Scan;
                 doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.InventoryRemoved, Document.Current.Quantity, ((InventoryItem)PXSelectorAttribute.Select<PickPackInfo.currentInventoryID>(this.Document.Cache, doc)).InventoryCD.TrimEnd());
-                doc.Quantity = 1;
-                doc.ScanMode = ScanModes.Add;
-                doc.ScanState = ScanStates.Item;
+                SetScanState(ScanStates.Item);
             }
             else
             {
@@ -749,7 +767,7 @@ namespace PX.Objects.SO
                 {
                     doc.Status = ScanStatuses.Information;
                     doc.Message = WM.Messages.PackageWeightPrompt;
-                    doc.ScanState = ScanStates.Weight;
+                    SetScanState(ScanStates.Weight);
                 }
             }
         }
