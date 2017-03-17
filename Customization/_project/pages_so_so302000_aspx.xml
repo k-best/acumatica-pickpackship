@@ -229,7 +229,7 @@
                             <PXGrid TypeFullName="PX.Web.UI.PXGrid">
                                 <Prop Key="Virtual:ApplyStylesheetSkin" />
                                 <Prop Key="SyncPosition" Value="True" />
-                                <Prop Key="SkinID" Value="DetailsInTab" />
+                                <Prop Key="SkinID" Value="Inquire" />
                                 <Prop Key="Width" Value="100%" />
                                 <Prop Key="ID" Value="gridPackageDetailSplit" />
                                 <Prop Key="Caption" Value="Contents of Selected Package" />

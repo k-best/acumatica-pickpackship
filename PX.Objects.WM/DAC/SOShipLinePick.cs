@@ -9,7 +9,7 @@ namespace PX.Objects.SO
     {
         public abstract class pickedQty : IBqlField { }
         [PXQuantity(typeof(SOShipLine.uOM), typeof(SOShipLine.baseShippedQty))]
-        [PXUIField(DisplayName = "Picked Qty.")]
+        [PXUIField(DisplayName = "Picked Qty.", Enabled = false)]
         [PXDefault(TypeCode.Decimal, "0.0")]
         public virtual Decimal? PickedQty { get; set; }
     }

@@ -191,17 +191,30 @@ namespace PX.Objects.SO
             EnsureUserSetupExists();
             Transactions.Cache.AllowDelete = false;
             Transactions.Cache.AllowInsert = false;
+            Transactions.Cache.AllowUpdate = false;
             Splits.Cache.AllowDelete = false;
             Splits.Cache.AllowInsert = false;
             Splits.Cache.AllowUpdate = false;
             ScanLogs.Cache.AllowDelete = false;
             ScanLogs.Cache.AllowInsert = false;
             ScanLogs.Cache.AllowUpdate = false;
-            Packages.Cache.AllowInsert = this.Shipment.Current != null;
+            Packages.Cache.AllowInsert = false; //Manual deletion and edit of weight/value is possible
+            PackageSplits.Cache.AllowUpdate = false;
+            PackageSplits.Cache.AllowInsert = false;
+            PackageSplits.Cache.AllowUpdate = false;
 
             var doc = this.Document.Current;
             Confirm.SetEnabled(doc != null && doc.ShipmentNbr != null);
             ConfirmAll.SetEnabled(doc != null && doc.ShipmentNbr != null);
+        }
+
+
+        protected void PickPackInfo_ShipmentNbr_FieldUpdated(PXCache sender, PXFieldUpdatedEventArgs e)
+        {
+            var doc = e.Row as PickPackInfo;
+            if (doc == null) return;
+
+            SelectShipment(doc);
         }
 
         protected virtual void EnsureUserSetupExists()
@@ -211,14 +224,6 @@ namespace PX.Objects.SO
             {
                 UserSetup.Current = UserSetup.Insert((SOPickPackShipUserSetup)UserSetup.Cache.CreateInstance());
             }
-        }
-
-        protected void PickPackInfo_ShipmentNbr_FieldUpdated(PXCache sender, PXFieldUpdatedEventArgs e)
-        {
-            var doc = e.Row as PickPackInfo;
-            if (doc == null) return;
-
-            SelectShipment(doc);
         }
 
         private void SelectShipment(PickPackInfo doc)
@@ -241,11 +246,6 @@ namespace PX.Objects.SO
             this.Document.Update(doc);
         }
 
-        protected void SOShipLinePick_RowSelected(PXCache sender, PXRowSelectedEventArgs e)
-        {
-            PXUIFieldAttribute.SetEnabled(sender, e.Row, false);
-            PXUIFieldAttribute.SetEnabled<SOShipLinePick.pickedQty>(sender, e.Row, true);
-        }
 
         protected IEnumerable scanLogs()
         {
@@ -1351,15 +1351,30 @@ namespace PX.Objects.SO
             }
         }
 
+        protected virtual void SOPackageDetailPick_RowDeleted(PXCache sender, PXRowDeletedEventArgs e)
+        {
+            var row = e.Row as SOPackageDetailPick;
+            if (row == null) return;
+
+            //Detach any splits that was linked to the just deleted package
+            foreach(SOShipLineSplit split in this.Splits.Cache.Cached)
+            {
+                var ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
+                if (ext.PackageLineNbr == row.LineNbr)
+                {
+                    ext.PackageLineNbr = null;
+                    this.Splits.Update(split);
+                }
+            }
+        }
+
         protected virtual void SOPackageDetailPick_RowSelected(PXCache sender, PXRowSelectedEventArgs e)
         {
             SOPackageDetailPick row = e.Row as SOPackageDetailPick;
-            PackageSplits.Cache.AllowInsert = row != null;
-            if (row != null)
-            {
-                row.WeightUOM = Setup.Current.WeightUOM;
-                row.IsCurrent = (this.Document.Current.CurrentPackageLineNbr != null && row.LineNbr == this.Document.Current.CurrentPackageLineNbr);
-            }
+            if (row == null) return;
+
+            row.WeightUOM = Setup.Current.WeightUOM;
+            row.IsCurrent = (this.Document.Current.CurrentPackageLineNbr != null && row.LineNbr == this.Document.Current.CurrentPackageLineNbr);
         }
 
         protected void SOPackageDetailPick_IsCurrent_FieldUpdated(PXCache sender, PXFieldUpdatedEventArgs e)

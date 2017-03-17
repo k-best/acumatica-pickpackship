@@ -162,7 +162,7 @@
 							</px:PXGrid>
 						</Template1>
 				        <Template2>
-			                <px:PXGrid ID="gridPackageDetailSplit" runat="server" DataSourceID="ds" Style="z-index: 100; left: 0px; top: 0px; height: 372px;" Width="100%" SkinID="DetailsInTab" BorderWidth="0px" Caption="Contents of Current Package">
+			                <px:PXGrid ID="gridPackageDetailSplit" runat="server" DataSourceID="ds" Style="z-index: 100; left: 0px; top: 0px; height: 372px;" Width="100%" SkinID="Inquire" BorderWidth="0px" Caption="Contents of Current Package">
 				                <Levels>
 			                        <px:PXGridLevel DataMember="PackageSplits">
 					                    <Columns>
