@@ -54,18 +54,20 @@ namespace PX.Objects.WM
         #endregion
 
         #region Package
-        public const string BoxMissing = "Box {0} not found in database.";
+        public const string PackageBoxMissing = "Box {0} not found in database.";
+        public const string PackageBoxWeightMissing = "Box weight missing. {0}";
         public const string PackageComplete = "Package is complete. Weight: {0:0.0000} {1}";
         public const string PackageCompletePrompt = "Please complete the current package using the {0}{1} command.";
         public const string PackageCommandMissingBoxId = "The New Package command must be followed by a Box ID.";
         public const string PackageIncompleteError = "Please complete the current package using the {0}{1} command.";
         public const string PackageInvalidFileExtension = "Unsupported file extension attached to the package for Shipment {0}/{1}";
         public const string PackageInvalidWeight = "{0} is not a valid weight.";
+        public const string PackageItemsMissing = "No items in package. {0}";
+        public const string PackageLineNbrMissing = "Unable to find package line {0} - was it deleted manually?";
         public const string PackageMissingCurrent = "There is no package currently selected or in process.";
         public const string PackageRemoveInventoryError = "The system was not able to locate package details for the item you just removed.";
-        public const string PackageLineNbrMissing = "Unable to find package line {0} - was it deleted manually?";
-        public const string PackageWeightPrompt = "Please enter the total weight of this package and press enter.";
-        public const string WrongWeightUnit = "Wrong weight unit: {0}, only KG and LB are supported.";
+        public const string PackageWeightPrompt = "Please enter package total weight and press enter.";
+        public const string PackageWrongWeightUnit = "Wrong weight unit: {0}, only KG and LB are supported.";
         #endregion
 
         #region Scale

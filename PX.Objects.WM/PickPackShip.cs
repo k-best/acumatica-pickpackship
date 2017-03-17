@@ -45,6 +45,7 @@ namespace PX.Objects.SO
         public const string Item = "I";
         public const string LotSerial = "S";
         public const string NewPackage = "P";
+        public const string NewPackageAutoCalcWeight = "PA";
         public const string PackageComplete = "PC";
     }
 
@@ -301,7 +302,7 @@ namespace PX.Objects.SO
             if (String.IsNullOrEmpty(doc.Barcode))
             {
                 doc.Status = ScanStatuses.Error;
-                doc.Message = WM.Messages.BarcodePrompt;
+                doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.BarcodePrompt);
             }
             else
             {
@@ -357,7 +358,7 @@ namespace PX.Objects.SO
                 else
                 {
                     doc.Status = ScanStatuses.Error;
-                    doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.CommandAccessRightsError);
+                    doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandAccessRightsError);
                 }
             }
             else
@@ -367,22 +368,22 @@ namespace PX.Objects.SO
                     case ScanCommands.Add:
                         this.Document.Current.ScanMode = ScanModes.Add;
                         doc.Status = ScanStatuses.Information;
-                        doc.Message = WM.Messages.CommandAdd;
+                        doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandAdd);
                         break;
                     case ScanCommands.Remove:
                         this.Document.Current.ScanMode = ScanModes.Remove;
                         doc.Status = ScanStatuses.Information;
-                        doc.Message = WM.Messages.CommandRemove;
+                        doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandRemove);
                         break;
                     case ScanCommands.Item:
                         this.Document.Current.LotSerialSearch = false;
                         doc.Status = ScanStatuses.Information;
-                        doc.Message = WM.Messages.CommandInventory;
+                        doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandInventory);
                         break;
                     case ScanCommands.LotSerial:
                         this.Document.Current.LotSerialSearch = true;
                         doc.Status = ScanStatuses.Information;
-                        doc.Message = WM.Messages.CommandLot;
+                        doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandLot);
                         break;
                     case ScanCommands.Confirm:
                         if (Confirm.GetEnabled())
@@ -392,7 +393,7 @@ namespace PX.Objects.SO
                         else
                         {
                             doc.Status = ScanStatuses.Error;
-                            doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.CommandAccessRightsError);
+                            doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandAccessRightsError);
                         }
                         break;
                     case ScanCommands.ConfirmAll:
@@ -403,23 +404,26 @@ namespace PX.Objects.SO
                         else
                         {
                             doc.Status = ScanStatuses.Error;
-                            doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.CommandAccessRightsError);
+                            doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandAccessRightsError);
                         }
                         break;
                     case ScanCommands.Clear:
                         ClearScreen(true);
                         doc.Status = ScanStatuses.Clear;
-                        doc.Message = WM.Messages.CommandClear;
+                        doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandClear);
                         break;
                     case ScanCommands.NewPackage:
-                        ProcessNewPackageCommand(commands);
+                        ProcessNewPackageCommand(commands, false);
+                        break;
+                    case ScanCommands.NewPackageAutoCalcWeight:
+                        ProcessNewPackageCommand(commands, true);
                         break;
                     case ScanCommands.PackageComplete:
-                        ProcessPackageCompleteCommand();
+                        ProcessPackageCompleteCommand(false);
                         break;
                     default:
                         doc.Status = ScanStatuses.Error;
-                        doc.Message = WM.Messages.CommandUnknown;
+                        doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandUnknown);
                         break;
                 }
             }
@@ -432,11 +436,7 @@ namespace PX.Objects.SO
             decimal weight = 0;
             if(decimal.TryParse(barcode, out weight) && weight >= 0)
             {
-                doc.Status = ScanStatuses.Information;
-                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageComplete, weight, Setup.Current.WeightUOM);
                 SetCurrentPackageWeight(weight);
-                doc.CurrentPackageLineNbr = null;
-                SetScanState(ScanStates.Item);
             }
             else
             {
@@ -455,7 +455,7 @@ namespace PX.Objects.SO
             }
             else
             {
-                throw new PXException(WM.Messages.WrongWeightUnit, weightUnit);
+                throw new PXException(WM.Messages.PackageWrongWeightUnit, weightUnit);
             }
         }
 
@@ -681,8 +681,8 @@ namespace PX.Objects.SO
                 doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.InventoryMissing);
             }
         }
-        
-        protected virtual void ProcessNewPackageCommand(string[] commands)
+
+        protected virtual void ProcessNewPackageCommand(string[] commands, bool autoCalcWeight)
         {
             var doc = this.Document.Current;
            
@@ -690,7 +690,7 @@ namespace PX.Objects.SO
             {
                 //We're expecting something that looks like *P*LARGE
                 doc.Status = ScanStatuses.Error;
-                doc.Message = WM.Messages.PackageCommandMissingBoxId;
+                doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.PackageCommandMissingBoxId);
                 return;
             }
 
@@ -706,7 +706,7 @@ namespace PX.Objects.SO
             if(box == null)
             {
                 doc.Status = ScanStatuses.Error;
-                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.BoxMissing, boxID);
+                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageBoxMissing, boxID);
             }
             else
             {
@@ -715,74 +715,179 @@ namespace PX.Objects.SO
                 newPackage = this.Packages.Insert(newPackage);
                 doc.CurrentPackageLineNbr = newPackage.LineNbr;
 
-                ProcessPackageCompleteCommand();
+                ProcessPackageCompleteCommand(autoCalcWeight);
             }
         }
 
-        protected virtual void ProcessPackageCompleteCommand()
+        protected virtual void ProcessPackageCompleteCommand(bool autoCalcWeight)
         {
             var doc = this.Document.Current;
 
             if (doc.CurrentPackageLineNbr == null)
             {
                 doc.Status = ScanStatuses.Error;
-                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageMissingCurrent);
+                doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.PackageMissingCurrent);
             }
             else
             {
                 //Attach any unlinked splits to newly inserted package
-                foreach(SOShipLineSplit split in this.Splits.Cache.Cached)
+                foreach (SOShipLineSplit split in this.Splits.Cache.Cached)
                 {
                     var ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
-                    if(ext.PackageLineNbr == null)
+                    if (ext.PackageLineNbr == null)
                     {
                         ext.PackageLineNbr = doc.CurrentPackageLineNbr;
                         this.Splits.Update(split);
                     }
                 }
 
-                if(this.UserSetup.Current.UseScale == true)
+                if (autoCalcWeight)
                 {
-                    var scale = (SMScale)PXSelect<SMScale, Where<SMScale.scaleID, Equal<Required<SOPickPackShipUserSetup.scaleID>>>>.Select(this, this.UserSetup.Current.ScaleID);
-                    if(scale == null)
-                    {
-                        throw new PXException(PXMessages.LocalizeFormatNoPrefix(WM.Messages.ScaleMissing, this.UserSetup.Current.ScaleID));
-                    }
-
-                    if (scale.LastModifiedDateTime.Value.AddSeconds(ScaleWeightValiditySeconds) < DateTime.Now)
-                    {
-                        doc.Status = ScanStatuses.Error;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.ScaleTimeout, this.UserSetup.Current.ScaleID, ScaleWeightValiditySeconds);
-                    }
-                    else
-                    {
-                        decimal convertedWeight = ConvertKilogramToWeightUnit(scale.LastWeight.GetValueOrDefault(), Setup.Current.WeightUOM);
-                        doc.Status = ScanStatuses.Information;
-                        doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageComplete, convertedWeight, Setup.Current.WeightUOM);
-                        SetCurrentPackageWeight(convertedWeight);
-                        doc.CurrentPackageLineNbr = null;
-                    }
+                    ProcessAutoCalcWeight();
+                }
+                else if (this.UserSetup.Current.UseScale == true)
+                {
+                    ProcessScaleWeight();
                 }
                 else
                 {
-                    doc.Status = ScanStatuses.Information;
-                    doc.Message = WM.Messages.PackageWeightPrompt;
-                    SetScanState(ScanStates.Weight);
+                    PromptForPackageWeight(false, false);
                 }
             }
+        }
+
+        protected virtual void ProcessAutoCalcWeight()
+        {
+            var doc = this.Document.Current;
+            bool isNoItemsInPackage = false;
+            bool isBoxWeightMissing = false;
+            decimal weight = 0M;
+
+            if (!CalculatePackageWeightFromItemsAndBoxConfiguration(out weight, out isNoItemsInPackage, out isBoxWeightMissing))
+            {
+                PromptForPackageWeight(isNoItemsInPackage, isBoxWeightMissing);
+            }
+            else
+            {
+                SetCurrentPackageWeight(weight);
+            }
+        }
+
+        protected virtual void ProcessScaleWeight()
+        {
+            var doc = this.Document.Current;
+            var scale = (SMScale)PXSelect<SMScale, Where<SMScale.scaleID, Equal<Required<SOPickPackShipUserSetup.scaleID>>>>.Select(this, this.UserSetup.Current.ScaleID);
+
+            if (scale == null)
+            {
+                throw new PXException(PXMessages.LocalizeFormatNoPrefix(WM.Messages.ScaleMissing, this.UserSetup.Current.ScaleID));
+            }
+
+            if (scale.LastModifiedDateTime.Value.AddSeconds(ScaleWeightValiditySeconds) < DateTime.Now)
+            {
+                doc.Status = ScanStatuses.Error;
+                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.ScaleTimeout, this.UserSetup.Current.ScaleID, ScaleWeightValiditySeconds);
+            }
+            else
+            {
+                decimal convertedWeight = ConvertKilogramToWeightUnit(scale.LastWeight.GetValueOrDefault(), Setup.Current.WeightUOM);
+                SetCurrentPackageWeight(convertedWeight);
+            }
+        }
+
+        protected virtual void PromptForPackageWeight(bool isNoItemsInPackage, bool isBoxWeightMissing)
+        {
+            var doc = this.Document.Current;
+            doc.Status = ScanStatuses.Information;
+
+            if (isNoItemsInPackage)
+            {
+                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageItemsMissing,
+                                                                PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageWeightPrompt));
+            }
+            else if (isBoxWeightMissing)
+            {
+                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageBoxWeightMissing,
+                                                                PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageWeightPrompt));
+            }
+            else
+            {
+                doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.PackageWeightPrompt);
+            }
+
+            SetScanState(ScanStates.Weight);
+        }
+
+        protected virtual bool CalculatePackageWeightFromItemsAndBoxConfiguration(out decimal weight, out bool isNoItemsInPackage, out bool isBoxWeightMissing)
+        {
+            isNoItemsInPackage = false;
+            isBoxWeightMissing = false;
+            int itemsCount = 0;
+            weight = 0M;
+
+            // Add items weight
+            foreach (SOShipLineSplit split in this.Splits.Cache.Cached)
+            {
+                SOShipLineSplitExt ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
+                if (ext.PackageLineNbr != this.Document.Current.CurrentPackageLineNbr) continue;
+
+                itemsCount++;
+                SOShipLinePick currentShipLine = (SOShipLinePick)this.Transactions.Search<SOShipLinePick.lineNbr>(split.LineNbr);
+
+                if (currentShipLine != null)
+                    weight += split.BaseQty.GetValueOrDefault() * currentShipLine.UnitWeigth.GetValueOrDefault();
+            }
+
+            if (itemsCount == 0)
+            {
+                isNoItemsInPackage = true;
+                return false;
+            }
+
+            // Add box weight
+            CSBox box = PXSelect<CSBox, Where<CSBox.boxID, Equal<Required<CSBox.boxID>>>>.Select(this, GetCurrentPackageDetailPick().BoxID);
+
+            if (box == null ||
+                box.BoxWeight == null ||
+                box.BoxWeight.Value == 0m)
+            {
+                isBoxWeightMissing = true;
+                return false;
+            }
+            else
+            {
+                weight = decimal.Round(weight + box.BoxWeight.Value, SOPackageInfo.BoxWeightPrecision);
+            }
+
+            return true;
         }
 
         protected virtual void SetCurrentPackageWeight(decimal weight)
         {
-            var package = (SOPackageDetailPick)this.Packages.Search<SOPackageDetailPick.lineNbr>(this.Document.Current.CurrentPackageLineNbr);
+            var doc = this.Document.Current;
+            SOPackageDetailPick package = GetCurrentPackageDetailPick();
+
+            package.Weight = weight;
+            this.Packages.Update(package);
+
+            doc.Status = ScanStatuses.Information;
+            doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageComplete, weight, Setup.Current.WeightUOM);
+            doc.CurrentPackageLineNbr = null;
+            SetScanState(ScanStates.Item);
+        }
+
+        protected virtual SOPackageDetailPick GetCurrentPackageDetailPick()
+        {
+            SOPackageDetailPick package = (SOPackageDetailPick)this.Packages.Search<SOPackageDetailPick.lineNbr>(this.Document.Current.CurrentPackageLineNbr);
+
             if (package == null)
             {
                 throw new PXException(PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageLineNbrMissing, this.Document.Current.CurrentPackageLineNbr));
             }
-            package.Weight = weight;
-            this.Packages.Update(package);
+
+            return package;
         }
-        
+
         protected virtual PXResult<INLotSerClass> GetLotSerialClass(int? inventoryID, int? subItemID)
         {
             return  PXSelectJoin<INLotSerClass,
@@ -835,8 +940,8 @@ namespace PX.Objects.SO
             var doc = this.Document.Current;
 
             if (lotSerialClass != null &&
-                lotSerialClass.LotSerAssign != null &&
-                lotSerialClass.LotSerAssign.Equals(INLotSerAssign.WhenReceived))
+                lotSerialClass.LotSerTrack != INLotSerTrack.NotNumbered &&
+                lotSerialClass.LotSerAssign == INLotSerAssign.WhenReceived)
             {
                 if (lotSerialStatus == null)
                 {
@@ -844,8 +949,7 @@ namespace PX.Objects.SO
                     doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotMissing, barcode);
                     return false;
                 }
-                else if (lotSerialClass.LotSerTrackExpiration.HasValue &&
-                         lotSerialClass.LotSerTrackExpiration.Value &&
+                else if (lotSerialClass.LotSerTrackExpiration == true &&
                          IsLotExpired(lotSerialStatus))
                 {
                     doc.Status = ScanStatuses.Error;
@@ -1062,13 +1166,13 @@ namespace PX.Objects.SO
             if (shipment == null)
             {
                 doc.Status = ScanStatuses.Error;
-                doc.Message = WM.Messages.ShipmentMissing;
+                doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.ShipmentMissing);
                 this.Document.Update(doc);
                 return;
             }
 
             if (confirmMode == ConfirmMode.AllItems || !IsConfirmationNeeded() ||
-                this.Document.Ask(WM.Messages.ShipmentQuantityMismatchPrompt, MessageButtons.YesNo) == PX.Data.WebDialogResult.Yes)
+                this.Document.Ask(PXMessages.LocalizeNoPrefix(WM.Messages.ShipmentQuantityMismatchPrompt), MessageButtons.YesNo) == PX.Data.WebDialogResult.Yes)
             {
                 PXLongOperation.StartOperation(this, () =>
                 {
