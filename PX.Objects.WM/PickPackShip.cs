@@ -28,6 +28,7 @@ namespace PX.Objects.SO
 
     public static class ScanStates
     {
+        public const string ShipmentNumber = "N";
         public const string Item = "I";
         public const string LotSerialNumber = "S";
         public const string Location = "L";
@@ -104,7 +105,7 @@ namespace PX.Objects.SO
 
         public abstract class scanState : IBqlField { }
         [PXString(1, IsFixed = true)]
-        [PXDefault(ScanStates.Item)]
+        [PXDefault(ScanStates.ShipmentNumber)]
         [PXUIField(DisplayName = "Scan State")]
         public virtual string ScanState { get; set; }
 
@@ -217,16 +218,23 @@ namespace PX.Objects.SO
             var doc = e.Row as PickPackInfo;
             if (doc == null) return;
 
+            SelectShipment(doc);
+        }
+
+        private void SelectShipment(PickPackInfo doc)
+        {
             this.Shipment.Current = this.Shipment.Select();
             if (this.Shipment.Current != null)
             {
                 doc.Status = ScanStatuses.Scan;
                 doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.ShipmentReady, doc.ShipmentNbr);
+                SetScanState(ScanStates.Item);
             }
             else
             {
                 doc.Status = ScanStatuses.Error;
                 doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.ShipmentNbrMissing, doc.ShipmentNbr);
+                SetScanState(ScanStates.ShipmentNumber);
             }
 
             ClearScreen(false);
@@ -309,6 +317,9 @@ namespace PX.Objects.SO
             {
                 switch (doc.ScanState)
                 {
+                    case ScanStates.ShipmentNumber:
+                        ProcessShipmentNumber(doc.Barcode);
+                        break;
                     case ScanStates.Item:
                         if (doc.Barcode[0] == ScanCommands.CommandChar)
                         {
@@ -335,6 +346,13 @@ namespace PX.Objects.SO
 
             doc.Barcode = String.Empty;
             this.Document.Update(doc);
+        }
+
+        protected virtual void ProcessShipmentNumber(string barcode)
+        {
+            var doc = this.Document.Current;
+            doc.ShipmentNbr = barcode.Trim();
+            SelectShipment(doc);
         }
 
         protected virtual void ProcessCommands(string barcode)
@@ -462,7 +480,12 @@ namespace PX.Objects.SO
 
         protected virtual void ClearScreen(bool clearShipmentNbr)
         {
-            if(clearShipmentNbr) this.Document.Current.ShipmentNbr = null;
+            if (clearShipmentNbr)
+            {
+                this.Document.Current.ShipmentNbr = null;
+                SetScanState(ScanStates.ShipmentNumber);
+            }
+
             this.Document.Current.CurrentInventoryID = null;
             this.Document.Current.CurrentSubID = null;
             this.Document.Current.CurrentLocationID = null;
