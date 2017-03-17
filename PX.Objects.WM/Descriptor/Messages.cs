@@ -51,6 +51,7 @@ namespace PX.Objects.WM
         public const string InventoryAdded = "Added {0} x {1}.";
         public const string InventoryRemoved = "Removed {0} x {1}.";
         public const string InventoryMissing = "Item not found on shipment or in current package.";
+        public const string InventoryUpdated = "Picked quantity updated from {0} to {1} {2}.";
         #endregion
 
         #region Package
