@@ -506,7 +506,7 @@ namespace PX.Objects.SO
             if (doc.LotSerialSearch == true)
             {
                 INLotSerialStatus lotSerialStatus = GetLotSerialStatus(barcode);
-                INLotSerClass lotSerialClass = (lotSerialStatus != null ? GetLotSerialClass(lotSerialStatus.InventoryID, lotSerialStatus.SubItemID) : null);
+                INLotSerClass lotSerialClass = (lotSerialStatus != null ? GetLotSerialClass(lotSerialStatus.InventoryID) : null);
 
                 if (ValidateLotSerialStatus(barcode, lotSerialStatus, lotSerialClass))
                 {
@@ -553,7 +553,7 @@ namespace PX.Objects.SO
 
             //TODO: For items with lot/serial assigned at INLotSerAssign.WhenUsed, we could verify lot/serial against validation mask.
             INLotSerialStatus lotSerialStatus = GetLotSerialStatus(barcode);
-            INLotSerClass lotSerialClass = GetLotSerialClass(doc.CurrentInventoryID, doc.CurrentSubID);
+            INLotSerClass lotSerialClass = GetLotSerialClass(doc.CurrentInventoryID);
             
             if (ValidateLotSerialStatus(barcode, lotSerialStatus, lotSerialClass))
             {
@@ -775,7 +775,7 @@ namespace PX.Objects.SO
                 }
                 else
                 {
-                    PromptForPackageWeight(false, false);
+                    PromptForPackageWeight(false);
                 }
             }
         }
@@ -783,13 +783,11 @@ namespace PX.Objects.SO
         protected virtual void ProcessAutoCalcWeight()
         {
             var doc = this.Document.Current;
-            bool isNoItemsInPackage = false;
-            bool isBoxWeightMissing = false;
             decimal weight = 0M;
 
-            if (!CalculatePackageWeightFromItemsAndBoxConfiguration(out weight, out isNoItemsInPackage, out isBoxWeightMissing))
+            if (!CalculatePackageWeightFromItemsAndBoxConfiguration(out weight))
             {
-                PromptForPackageWeight(isNoItemsInPackage, isBoxWeightMissing);
+                PromptForPackageWeight(true);
             }
             else
             {
@@ -819,20 +817,14 @@ namespace PX.Objects.SO
             }
         }
 
-        protected virtual void PromptForPackageWeight(bool isNoItemsInPackage, bool isBoxWeightMissing)
+        protected virtual void PromptForPackageWeight(bool autoCalcFailed)
         {
             var doc = this.Document.Current;
             doc.Status = ScanStatuses.Information;
 
-            if (isNoItemsInPackage)
+            if (autoCalcFailed)
             {
-                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageItemsMissing,
-                                                                PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageWeightPrompt));
-            }
-            else if (isBoxWeightMissing)
-            {
-                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageBoxWeightMissing,
-                                                                PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageWeightPrompt));
+                doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageWeightAutoCalcFailedPrompt);
             }
             else
             {
@@ -842,11 +834,8 @@ namespace PX.Objects.SO
             SetScanState(ScanStates.Weight);
         }
 
-        protected virtual bool CalculatePackageWeightFromItemsAndBoxConfiguration(out decimal weight, out bool isNoItemsInPackage, out bool isBoxWeightMissing)
+        protected virtual bool CalculatePackageWeightFromItemsAndBoxConfiguration(out decimal weight)
         {
-            isNoItemsInPackage = false;
-            isBoxWeightMissing = false;
-            int itemsCount = 0;
             weight = 0M;
 
             // Add items weight
@@ -855,27 +844,22 @@ namespace PX.Objects.SO
                 SOShipLineSplitExt ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
                 if (ext.PackageLineNbr != this.Document.Current.CurrentPackageLineNbr) continue;
 
-                itemsCount++;
                 SOShipLinePick currentShipLine = (SOShipLinePick)this.Transactions.Search<SOShipLinePick.lineNbr>(split.LineNbr);
 
                 if (currentShipLine != null)
                     weight += split.BaseQty.GetValueOrDefault() * currentShipLine.UnitWeigth.GetValueOrDefault();
             }
 
-            if (itemsCount == 0)
+            if (weight == 0)
             {
-                isNoItemsInPackage = true;
                 return false;
             }
 
             // Add box weight
             CSBox box = PXSelect<CSBox, Where<CSBox.boxID, Equal<Required<CSBox.boxID>>>>.Select(this, GetCurrentPackageDetailPick().BoxID);
-
-            if (box == null ||
-                box.BoxWeight == null ||
-                box.BoxWeight.Value == 0m)
+            if (box == null)
             {
-                isBoxWeightMissing = true;
+                //Shouldn't happen
                 return false;
             }
             else
@@ -912,19 +896,11 @@ namespace PX.Objects.SO
             return package;
         }
 
-        protected virtual PXResult<INLotSerClass> GetLotSerialClass(int? inventoryID, int? subItemID)
+        protected virtual INLotSerClass GetLotSerialClass(int? inventoryID)
         {
-            return  PXSelectJoin<INLotSerClass,
-                    InnerJoin<InventoryItem, On<InventoryItem.inventoryID, Equal<Required<InventoryItem.inventoryID>>,
-                                             And<InventoryItem.lotSerClassID, Equal<INLotSerClass.lotSerClassID>,
-                                             And<InventoryItem.itemStatus, NotEqual<InventoryItemStatus.inactive>,
-                                             And<InventoryItem.itemStatus, NotEqual<InventoryItemStatus.noPurchases>,
-                                             And<InventoryItem.itemStatus, NotEqual<InventoryItemStatus.markedForDeletion>>>>>>,
-                    InnerJoin<INSubItem, On<INSubItem.subItemID, Equal<Required<INSubItem.subItemID>>>>>>
-                    .SelectSingleBound(this, 
-                                       new object[] { this.Document.Current }, 
-                                       inventoryID, 
-                                       subItemID);
+            return (INLotSerClass)PXSelectJoin<INLotSerClass,
+                    InnerJoin<InventoryItem, On<INLotSerClass.lotSerClassID, Equal<INLotSerClass.lotSerClassID>>>,
+                    Where<InventoryItem.inventoryID, Equal<Required<InventoryItem.inventoryID>>>>.Select(this, inventoryID);
         }
 
         protected virtual INLotSerialStatus GetLotSerialStatus(string barcode)
