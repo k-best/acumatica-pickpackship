@@ -315,15 +315,7 @@ namespace PX.Objects.SO
             }
             else
             {
-                string[] commands = doc.Barcode.Split(ScanCommands.CommandChar);
-
-                if (doc.Barcode[0] == ScanCommands.CommandChar &&
-                    commands.Length > 1 &&
-                    commands[1].ToUpperInvariant() == ScanCommands.Cancel)
-                {
-                    ProcessCommands(commands);
-                }
-                else
+                if (!ProcessCommands(doc.Barcode))
                 {
                     switch (doc.ScanState)
                     {
@@ -331,14 +323,7 @@ namespace PX.Objects.SO
                             ProcessShipmentNumber(doc.Barcode);
                             break;
                         case ScanStates.Item:
-                            if (doc.Barcode[0] == ScanCommands.CommandChar)
-                            {
-                                ProcessCommands(commands);
-                            }
-                            else
-                            {
-                                ProcessItemBarcode(doc.Barcode);
-                            }
+                            ProcessItemBarcode(doc.Barcode);
                             break;
                         case ScanStates.LotSerialNumber:
                             ProcessLotSerialBarcode(doc.Barcode);
@@ -366,10 +351,15 @@ namespace PX.Objects.SO
             SelectShipment(doc);
         }
 
-        protected virtual void ProcessCommands(string[] commands)
+        protected virtual bool ProcessCommands(string barcode)
         {
+            if (barcode[0] != ScanCommands.CommandChar)
+                return false;
+
             var doc = this.Document.Current;
-           
+
+            string[] commands = barcode.Split(ScanCommands.CommandChar);
+
             int quantity = 0;
             if(int.TryParse(commands[1].ToUpperInvariant(), out quantity))
             {
@@ -443,7 +433,7 @@ namespace PX.Objects.SO
                             doc.Status = ScanStatuses.Clear;
                             doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandClear);
                         }
-                        else
+                        else if (doc.ScanState != ScanStates.ShipmentNumber)
                         {
                             SetScanState(ScanStates.Item);
                             doc.Status = ScanStatuses.Information;
@@ -465,6 +455,8 @@ namespace PX.Objects.SO
                         break;
                 }
             }
+
+            return true;
         }
 
         protected virtual void ProcessWeight(string barcode)
