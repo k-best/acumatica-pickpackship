@@ -62,7 +62,7 @@ namespace PX.Objects.SO
                     {
                         Base.Document.Current = shipment;
                         string actualReportID = new NotificationUtility(Base).SearchReport(ARNotificationSource.Customer, Base.customer.Current, "SO644000", company.BranchID);
-                        jobMaint.AddPrintJob(queueName as string, actualReportID, new Dictionary<string, string> { { "ShipmentNbr", shipment.ShipmentNbr } });
+                        jobMaint.AddPrintJob(PXMessages.LocalizeFormatNoPrefix(WM.Messages.PrintPickList, shipment.ShipmentNbr), queueName as string, actualReportID, new Dictionary<string, string> { { "ShipmentNbr", shipment.ShipmentNbr } });
                         shipment.PickListPrinted = true;
                         Base.Document.Update(shipment);
                     }

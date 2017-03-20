@@ -1249,7 +1249,7 @@ namespace PX.Objects.SO
             {
                 //TODO: SO642000 shouldn't be hardcoded - this needs to be read from notification; see PickListPrintToQueueExtensions for example
                 if (jobMaint == null) jobMaint = PXGraph.CreateInstance<PrintJobMaint>();
-                jobMaint.AddPrintJob(printSetup.ShipmentConfirmationQueue, "SO642000", new Dictionary<string, string> { { "ShipmentNbr", graph.Document.Current.ShipmentNbr } });
+                jobMaint.AddPrintJob(PXMessages.LocalizeFormatNoPrefix(WM.Messages.PrintShipmentConfirmation, graph.Document.Current.ShipmentNbr), printSetup.ShipmentConfirmationQueue, "SO642000", new Dictionary<string, string> { { "ShipmentNbr", graph.Document.Current.ShipmentNbr } });
             }
             
             if (printSetup.ShipmentLabels == true)
@@ -1265,7 +1265,7 @@ namespace PX.Objects.SO
                         string extension = System.IO.Path.GetExtension(fileInfo.Name).ToLower();
                         if (extension == ".pdf" || extension == ".zpl" || extension == ".zplii" || extension == ".epl" || extension == ".epl2" || extension == ".dpl")
                         {
-                            jobMaint.AddPrintJob(printSetup.ShipmentLabelsQueue, "", new Dictionary<string, string> { { "FILEID", id.ToString() } });
+                            jobMaint.AddPrintJob(PXMessages.LocalizeFormatNoPrefix(WM.Messages.PrintShipmentlabel, id.ToString()), printSetup.ShipmentLabelsQueue, "", new Dictionary<string, string> { { "FILEID", id.ToString() } });
                         }
                         else
                         {

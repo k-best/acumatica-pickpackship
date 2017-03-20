@@ -13,6 +13,10 @@ namespace PX.SM
         [PXSelector(typeof(SMPrintJob.jobID))]
         public virtual int? JobID { get; set; }
 
+        public abstract class description : PX.Data.IBqlField { }
+        [PXDBString(255, IsUnicode = true)]
+        public virtual string Description { get; set; }
+
         public abstract class printQueue : PX.Data.IBqlField { }
         [PXDBString(10)]
         [PXDefault]
