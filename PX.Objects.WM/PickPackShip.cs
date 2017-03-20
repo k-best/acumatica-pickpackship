@@ -175,7 +175,7 @@ namespace PX.Objects.SO
         public PXSelect<SOShipLineSplit, Where<SOShipLineSplit.shipmentNbr, Equal<Current<SOShipLinePick.shipmentNbr>>, And<SOShipLineSplit.lineNbr, Equal<Current<SOShipLinePick.lineNbr>>>>> Splits;
         public PXSelect<SOPackageDetailPick, Where<SOPackageDetailPick.shipmentNbr, Equal<Current<SOShipment.shipmentNbr>>>> Packages;
         public PXSelect<SOShipLineSplit, Where<SOShipLineSplit.shipmentNbr, Equal<Current<SOPackageDetailPick.shipmentNbr>>>> PackageSplits;
-        public PXSelect<ScanLog> ScanLogs;
+        public PXSelectOrderBy<ScanLog, OrderBy<Desc<ScanLog.logLineDate>>> ScanLogs;
 
         public PickPackShip()
         {
@@ -315,7 +315,11 @@ namespace PX.Objects.SO
             }
             else
             {
-                if (!ProcessCommands(doc.Barcode))
+                if (doc.Barcode[0] == ScanCommands.CommandChar)
+                {
+                    ProcessCommands(doc.Barcode);
+                }
+                else
                 {
                     switch (doc.ScanState)
                     {
@@ -351,28 +355,19 @@ namespace PX.Objects.SO
             SelectShipment(doc);
         }
 
-        protected virtual bool ProcessCommands(string barcode)
+        protected virtual void ProcessCommands(string barcode)
         {
-            if (barcode[0] != ScanCommands.CommandChar)
-                return false;
-
             var doc = this.Document.Current;
-
             string[] commands = barcode.Split(ScanCommands.CommandChar);
 
             int quantity = 0;
-            if(int.TryParse(commands[1].ToUpperInvariant(), out quantity))
+            if (int.TryParse(commands[1].ToUpperInvariant(), out quantity))
             {
                 if (IsQuantityEnabled())
                 {
                     doc.Quantity = quantity;
                     doc.Status = ScanStatuses.Information;
                     doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.CommandSetQuantity, quantity);
-
-                    if (commands.Length > 2)
-                    {
-                        ProcessItemBarcode(commands[2]);
-                    }
                 }
                 else
                 {
@@ -382,7 +377,7 @@ namespace PX.Objects.SO
             }
             else
             {
-                switch(commands[1].ToUpperInvariant())
+                switch (commands[1].ToUpperInvariant())
                 {
                     case ScanCommands.Add:
                         this.Document.Current.ScanMode = ScanModes.Add;
@@ -455,8 +450,6 @@ namespace PX.Objects.SO
                         break;
                 }
             }
-
-            return true;
         }
 
         protected virtual void ProcessWeight(string barcode)
