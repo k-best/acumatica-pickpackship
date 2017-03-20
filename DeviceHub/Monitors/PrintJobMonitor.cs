@@ -319,9 +319,7 @@ namespace Acumatica.DeviceHub
                 pdfPrint.IsLandscape = false;
             }
 
-            pdfPrint.Print(pdfReport,
-                           new PdfWatermark(),
-                           jobDescription);
+            pdfPrint.Print(pdfReport, new PdfWatermark(), jobDescription);
         }
 
         private byte[] GetFileID(string fileID)

@@ -555,7 +555,6 @@ namespace PX.Objects.SO
         {
             var doc = this.Document.Current;
 
-            //TODO: For items with lot/serial assigned at INLotSerAssign.WhenUsed, we could verify lot/serial against validation mask.
             INLotSerialStatus lotSerialStatus = GetLotSerialStatus(barcode);
             INLotSerClass lotSerialClass = GetLotSerialClass(doc.CurrentInventoryID);
             
@@ -647,7 +646,7 @@ namespace PX.Objects.SO
                 {
                     if (lsclass.LotSerAssign == INLotSerAssign.WhenUsed && lsclass.LotSerTrackExpiration == true)
                     {
-                        //TODO: Implement support for this
+                        //TODO: Implement support for this by prompting for expiration date (ScanStates.ExpirationDate)
                         throw new NotImplementedException(WM.Messages.LotNotSupported);
                     }
 
