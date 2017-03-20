@@ -2,6 +2,7 @@
     <CDATA name="TableSchemaXml"><![CDATA[<table name="SMPrintJob">
   <col name="CompanyID" type="Int" default="Zero" />
   <col name="JobID" type="Int" identity="true" />
+  <col name="Description" type="NVarChar(255)" nullable="true" />
   <col name="PrintQueue" type="VarChar(10)" />
   <col name="ReportId" type="VarChar(8)" nullable="true" />
   <col name="NoteID" type="UniqueIdentifier" nullable="true" />

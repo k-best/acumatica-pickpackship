@@ -146,6 +146,7 @@ namespace Acumatica.DeviceHub
                 new Field { FieldName = "JobID", ObjectName = "Job" },
                 new Field { FieldName = "ReportID", ObjectName = "Job" },
                 new Field { FieldName = "PrintQueue", ObjectName = "Job" },
+                new Field { FieldName = "Description", ObjectName = "Job" },
                 new Field { FieldName = "ParameterName", ObjectName = "Parameters" },
                 new Field { FieldName = "ParameterValue", ObjectName = "Parameters" },
                 new Field { FieldName = "ParameterValue", ObjectName = "Parameters" },
@@ -162,6 +163,7 @@ namespace Acumatica.DeviceHub
             string currentJobID = null;
             string reportID = null;
             string queueName = null;
+            string description = null;
             Dictionary<string, string> parameters = null;
 
             if(results.Length == 0)
@@ -177,22 +179,23 @@ namespace Acumatica.DeviceHub
             {
                 if (results[i][0] != currentJobID)
                 {
-                    if (currentJobID != null) ProcessJob(_queues[queueName], currentJobID, reportID, parameters);
+                    if (currentJobID != null) ProcessJob(_queues[queueName], currentJobID, reportID, description, parameters);
 
                     currentJobID = results[i][0];
                     reportID = results[i][1];
                     queueName = results[i][2];
+                    description = results[i][3];
 
                     parameters = new Dictionary<string, string>();
                 }
 
-                parameters.Add(results[i][3], results[i][4]);
+                parameters.Add(results[i][4], results[i][5]);
             }
 
-            if (currentJobID != null) ProcessJob(_queues[queueName], currentJobID, reportID, parameters);
+            if (currentJobID != null) ProcessJob(_queues[queueName], currentJobID, reportID, description, parameters);
         }
 
-        private void ProcessJob(PrintQueue queue, string jobID, string reportID, Dictionary<string, string> parameters)
+        private void ProcessJob(PrintQueue queue, string jobID, string reportID, string jobDescription, Dictionary<string, string> parameters)
         {
             _progress.Report(new MonitorMessage(String.Format(Strings.ProcessPrintJobNotify, queue.QueueName, jobID)));
             const string fileIdKey = "FILEID";
@@ -231,7 +234,7 @@ namespace Acumatica.DeviceHub
                 {
                     if (IsPdf(data))
                     {
-                        PrintPdf(queue, data);
+                        PrintPdf(jobDescription, queue, data);
                     }
                     else
                     {
@@ -255,7 +258,7 @@ namespace Acumatica.DeviceHub
             RawPrinterHelper.SendRawBytesToPrinter(queue.PrinterName, rawData);
         }
 
-        private void PrintPdf(PrintQueue queue, byte[] pdfReport)
+        private void PrintPdf(string jobDescription, PrintQueue queue, byte[] pdfReport)
         {
             _progress.Report(new MonitorMessage(String.Format(Strings.PrintPdfNotify, queue.QueueName, queue.PrinterName)));
             var pdfPrint = new PdfPrint("demoCompany", "demoKey");
@@ -316,7 +319,9 @@ namespace Acumatica.DeviceHub
                 pdfPrint.IsLandscape = false;
             }
 
-            pdfPrint.Print(pdfReport);
+            pdfPrint.Print(pdfReport,
+                           new PdfWatermark(),
+                           jobDescription);
         }
 
         private byte[] GetFileID(string fileID)

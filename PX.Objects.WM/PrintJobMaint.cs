@@ -35,9 +35,10 @@ namespace PX.SM
             }
         }
 
-        public virtual void AddPrintJob(string printQueue, string reportID, Dictionary<string, string> parameters)
+        public virtual void AddPrintJob(string description, string printQueue, string reportID, Dictionary<string, string> parameters)
         {
             var job = (PX.SM.SMPrintJob)this.Job.Cache.CreateInstance();
+            job.Description = description;
             job.PrintQueue = printQueue;
             job.ReportID = reportID;
             this.Job.Insert(job);

@@ -70,6 +70,12 @@ namespace PX.Objects.WM
         public const string PackageWrongWeightUnit = "Wrong weight unit: {0}, only KG and LB are supported.";
         #endregion
 
+        #region Print
+        public const string PrintPickList = "Pick List #{0}";
+        public const string PrintShipmentConfirmation = "Shipment Confirmation #{0}";
+        public const string PrintShipmentlabel = "Shipment Label #{0}";
+        #endregion
+
         #region Scale
         public const string ScaleMissing = "Scale {0} not found in database.";
         public const string ScaleTimeout = "Measurement on scale {0} is more than {1} seconds old. Remove package from the scale and weigh it again.";
