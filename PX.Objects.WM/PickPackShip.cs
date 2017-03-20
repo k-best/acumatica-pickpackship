@@ -902,7 +902,7 @@ namespace PX.Objects.SO
         protected virtual INLotSerClass GetLotSerialClass(int? inventoryID)
         {
             return (INLotSerClass)PXSelectJoin<INLotSerClass,
-                    InnerJoin<InventoryItem, On<INLotSerClass.lotSerClassID, Equal<INLotSerClass.lotSerClassID>>>,
+                    InnerJoin<InventoryItem, On<INLotSerClass.lotSerClassID, Equal<InventoryItem.lotSerClassID>>>,
                     Where<InventoryItem.inventoryID, Equal<Required<InventoryItem.inventoryID>>>>.Select(this, inventoryID);
         }
 
