@@ -39,7 +39,7 @@ namespace PX.Objects.SO
     {
         public const char CommandChar = '*';
 
-        public const string Clear = "Z";
+        public const string Cancel = "Z";
         public const string Confirm = "C";
         public const string ConfirmAll = "CX";
         public const string Add = "A";
@@ -315,30 +315,26 @@ namespace PX.Objects.SO
             }
             else
             {
-                switch (doc.ScanState)
+                if (!ProcessCommands(doc.Barcode))
                 {
-                    case ScanStates.ShipmentNumber:
-                        ProcessShipmentNumber(doc.Barcode);
-                        break;
-                    case ScanStates.Item:
-                        if (doc.Barcode[0] == ScanCommands.CommandChar)
-                        {
-                            ProcessCommands(doc.Barcode);
-                        }
-                        else
-                        {
+                    switch (doc.ScanState)
+                    {
+                        case ScanStates.ShipmentNumber:
+                            ProcessShipmentNumber(doc.Barcode);
+                            break;
+                        case ScanStates.Item:
                             ProcessItemBarcode(doc.Barcode);
-                        }
-                        break;
-                    case ScanStates.LotSerialNumber:
-                        ProcessLotSerialBarcode(doc.Barcode);
-                        break;
-                    case ScanStates.Location:
-                        ProcessLocationBarcode(doc.Barcode);
-                        break;
-                    case ScanStates.Weight:
-                        ProcessWeight(doc.Barcode);
-                        break;
+                            break;
+                        case ScanStates.LotSerialNumber:
+                            ProcessLotSerialBarcode(doc.Barcode);
+                            break;
+                        case ScanStates.Location:
+                            ProcessLocationBarcode(doc.Barcode);
+                            break;
+                        case ScanStates.Weight:
+                            ProcessWeight(doc.Barcode);
+                            break;
+                    }
                 }
 
                 InsertScanLog();
@@ -355,11 +351,15 @@ namespace PX.Objects.SO
             SelectShipment(doc);
         }
 
-        protected virtual void ProcessCommands(string barcode)
+        protected virtual bool ProcessCommands(string barcode)
         {
+            if (barcode[0] != ScanCommands.CommandChar)
+                return false;
+
             var doc = this.Document.Current;
-            var commands = barcode.Split(ScanCommands.CommandChar);
-           
+
+            string[] commands = barcode.Split(ScanCommands.CommandChar);
+
             int quantity = 0;
             if(int.TryParse(commands[1].ToUpperInvariant(), out quantity))
             {
@@ -426,10 +426,19 @@ namespace PX.Objects.SO
                             doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandAccessRightsError);
                         }
                         break;
-                    case ScanCommands.Clear:
-                        ClearScreen(true);
-                        doc.Status = ScanStatuses.Clear;
-                        doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandClear);
+                    case ScanCommands.Cancel:
+                        if (doc.ScanState == ScanStates.Item)
+                        {
+                            ClearScreen(true);
+                            doc.Status = ScanStatuses.Clear;
+                            doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.CommandClear);
+                        }
+                        else if (doc.ScanState != ScanStates.ShipmentNumber)
+                        {
+                            SetScanState(ScanStates.Item);
+                            doc.Status = ScanStatuses.Information;
+                            doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.BarcodePrompt);
+                        }
                         break;
                     case ScanCommands.NewPackage:
                         ProcessNewPackageCommand(commands, false);
@@ -446,6 +455,8 @@ namespace PX.Objects.SO
                         break;
                 }
             }
+
+            return true;
         }
 
         protected virtual void ProcessWeight(string barcode)
