@@ -261,7 +261,7 @@ namespace Acumatica.DeviceHub
         private void PrintPdf(string jobDescription, PrintQueue queue, byte[] pdfReport)
         {
             _progress.Report(new MonitorMessage(String.Format(Strings.PrintPdfNotify, queue.QueueName, queue.PrinterName)));
-            var pdfPrint = new PdfPrint("demoCompany", "demoKey");
+            var pdfPrint = new PdfPrint("Acumatica", "g/4JFMjn6KtGjMEKn2ZY1H6+hSqKUHU+273JkSGKwP0=");
             pdfPrint.PrinterName = queue.PrinterName;
 
             // Retrieve paper size, source and orientation
