@@ -1,3 +1,0 @@
-﻿<Table TableName="SOShipLineSplit">
-    <Column TableName="SOShipLineSplit" ColumnName="PackageLineNbr" ColumnType="int" AllowNull="True" IsNewColumn="True" />
-</Table>

@@ -11,7 +11,11 @@ namespace PX.Objects.WM
         public const string Remove = "Remove";
 
         public const string MissingFileIdError = "Print job has no 'Report ID' or 'FILEID' parameter defined.";
-        
+
+        #region DAC Names
+        public const string SOPackageDetailSplit = "Package Detail Split";
+        #endregion
+
         #region Barcode
         public const string BarcodeMissing = "Barcode {0} not found in database.";
         public const string BarcodePrompt = "Please scan a barcode.";
@@ -89,6 +93,7 @@ namespace PX.Objects.WM
         public const string ShipmentNbrMissing = "Shipment {0} not found.";
         public const string ShipmentQuantityMismatchPrompt = "The quantity picked for one or more lines doesn't match with the shipment. Do you want to continue?";
         public const string ShipmentReady = "Shipment {0} loaded and ready to pick.";
+        public const string PackageDetailsMismatch = "Package details don't match shipment details.";
         #endregion
     }
 }

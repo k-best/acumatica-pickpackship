@@ -172,9 +172,9 @@ namespace PX.Objects.SO
         public PXFilter<PickPackInfo> Document;
         public PXSelect<SOShipment, Where<SOShipment.shipmentNbr, Equal<Current<PickPackInfo.shipmentNbr>>>> Shipment;
         public PXSelect<SOShipLinePick, Where<SOShipLinePick.shipmentNbr, Equal<Current<PickPackInfo.shipmentNbr>>>, OrderBy<Asc<SOShipLinePick.shipmentNbr, Asc<SOShipLine.lineNbr>>>> Transactions;
-        public PXSelect<SOShipLineSplit, Where<SOShipLineSplit.shipmentNbr, Equal<Current<SOShipLinePick.shipmentNbr>>, And<SOShipLineSplit.lineNbr, Equal<Current<SOShipLinePick.lineNbr>>>>> Splits;
+        public PXSelect<SOShipLineSplitPick, Where<SOShipLineSplitPick.shipmentNbr, Equal<Current<SOShipLinePick.shipmentNbr>>, And<SOShipLineSplitPick.lineNbr, Equal<Current<SOShipLinePick.lineNbr>>>>> Splits;
         public PXSelect<SOPackageDetailPick, Where<SOPackageDetailPick.shipmentNbr, Equal<Current<SOShipment.shipmentNbr>>>> Packages;
-        public PXSelect<SOShipLineSplit, Where<SOShipLineSplit.shipmentNbr, Equal<Current<SOPackageDetailPick.shipmentNbr>>>> PackageSplits;
+        public PXSelect<SOShipLineSplitPick, Where<SOPackageDetailSplit.shipmentNbr, Equal<Current<SOPackageDetailPick.shipmentNbr>>>> PackageSplits;
         public PXSelectOrderBy<ScanLog, OrderBy<Desc<ScanLog.logLineDate>>> ScanLogs;
 
         public PickPackShip()
@@ -283,10 +283,9 @@ namespace PX.Objects.SO
         protected IEnumerable packageSplits()
         {
             //We only use this view as a container for picked package details. We don't care about what's in the DB for this shipment.
-            foreach (SOShipLineSplit row in PackageSplits.Cache.Cached)
+            foreach (SOShipLineSplitPick row in PackageSplits.Cache.Cached)
             {
-                var ext = PackageSplits.Cache.GetExtension<SOShipLineSplitExt>(row);
-                if (this.Packages.Current != null && ext.PackageLineNbr == this.Packages.Current.LineNbr)
+                if (this.Packages.Current != null && row.PackageLineNbr == this.Packages.Current.LineNbr)
                 {
                     yield return row;
                 }
@@ -758,12 +757,11 @@ namespace PX.Objects.SO
             else
             {
                 //Attach any unlinked splits to newly inserted package
-                foreach (SOShipLineSplit split in this.Splits.Cache.Cached)
+                foreach (SOShipLineSplitPick split in this.Splits.Cache.Cached)
                 {
-                    var ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
-                    if (ext.PackageLineNbr == null)
+                    if (split.PackageLineNbr == null)
                     {
-                        ext.PackageLineNbr = doc.CurrentPackageLineNbr;
+                        split.PackageLineNbr = doc.CurrentPackageLineNbr;
                         this.Splits.Update(split);
                     }
                 }
@@ -842,10 +840,9 @@ namespace PX.Objects.SO
             weight = 0M;
 
             // Add items weight
-            foreach (SOShipLineSplit split in this.Splits.Cache.Cached)
+            foreach (SOShipLineSplitPick split in this.Splits.Cache.Cached)
             {
-                SOShipLineSplitExt ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
-                if (ext.PackageLineNbr != this.Document.Current.CurrentPackageLineNbr) continue;
+                if (split.PackageLineNbr != this.Document.Current.CurrentPackageLineNbr) continue;
 
                 SOShipLinePick currentShipLine = (SOShipLinePick)this.Transactions.Search<SOShipLinePick.lineNbr>(split.LineNbr);
 
@@ -1015,11 +1012,10 @@ namespace PX.Objects.SO
             {
                 //This is not a serialized item, we can add quantity to existing split.
                 bool foundMatchingSplit = false;
-                foreach(SOShipLineSplit split in this.Splits.Select())
+                foreach(SOShipLineSplitPick split in this.Splits.Select())
                 {
                     // Splits are linked to the corresponding package line number. If this is a new package, PackageLineNbr will be null.
-                    var ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
-                    if (split.LocationID == locationID && ext.PackageLineNbr == this.Document.Current.CurrentPackageLineNbr)
+                    if (split.LocationID == locationID && split.PackageLineNbr == this.Document.Current.CurrentPackageLineNbr)
                     {
                         split.Qty += quantity;
                         this.Splits.Update(split);
@@ -1045,19 +1041,13 @@ namespace PX.Objects.SO
 
         protected virtual void InsertSplit(decimal quantity, int? locationID, string lotSerialNumber, DateTime? expirationDate)
         {
-            var split = (SOShipLineSplit)this.Splits.Cache.CreateInstance();
+            var split = (SOShipLineSplitPick)this.Splits.Cache.CreateInstance();
             split.Qty = quantity;
             split.LocationID = locationID;
             split.LotSerialNbr = lotSerialNumber;
             split.ExpireDate = expirationDate;
+            split.PackageLineNbr = this.Document.Current.CurrentPackageLineNbr;
             this.Splits.Insert(split);
-
-            if(this.Document.Current.CurrentPackageLineNbr != null)
-            { 
-                var ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
-                ext.PackageLineNbr = this.Document.Current.CurrentPackageLineNbr;
-                this.Splits.Update(split);
-            }
         }
         
         protected virtual decimal GetTotalQuantityPickedForLotSerial(int? inventoryID, int? subID, string lotSerialNumber)
@@ -1090,12 +1080,10 @@ namespace PX.Objects.SO
                 if (pickLine.PickedQty.GetValueOrDefault() <= 0) continue;
 
                 this.Transactions.Current = pickLine;
-                foreach (SOShipLineSplit split in this.Splits.Select())
+                foreach (SOShipLineSplitPick split in this.Splits.Select())
                 {
-                    var ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
-
                     if (split.LocationID != locationID && locationID != null) continue;
-                    if (ext.PackageLineNbr != this.Document.Current.CurrentPackageLineNbr) continue;
+                    if (split.PackageLineNbr != this.Document.Current.CurrentPackageLineNbr) continue;
                     if (split.LotSerialNbr != lotSerialNumber && !String.IsNullOrEmpty(lotSerialNumber)) continue;
 
                     decimal quantityToRemoveForSplit = Math.Min(split.Qty.GetValueOrDefault(), quantity.GetValueOrDefault());
@@ -1351,6 +1339,24 @@ namespace PX.Objects.SO
             {
                 package.Confirmed = true;
                 graph.Packages.Insert(package);
+
+                foreach(SOShipLineSplitPick split in this.Splits.Cache.Cached)
+                {
+                    if(split.PackageLineNbr == package.LineNbr)
+                    {
+                        SOPackageDetailSplit packageSplit = (SOPackageDetailSplit) graph.Caches[typeof(SOPackageDetailSplit)].CreateInstance();
+                        packageSplit.InventoryID = split.InventoryID;
+                        packageSplit.SubItemID = split.SubItemID;
+                        packageSplit.Qty = split.Qty;
+                        packageSplit.UOM = split.UOM;
+                        packageSplit.BaseQty = split.BaseQty;
+                        packageSplit.LotSerialNbr = split.LotSerialNbr;
+                        packageSplit.ExpireDate = split.ExpireDate;
+                        
+                        //TODO: Replace with actual view when integrating into Acumatica codebase
+                        graph.Caches[typeof(SOPackageDetailSplit)].Insert(packageSplit);
+                    }
+                }
             }
         }
 
@@ -1360,12 +1366,11 @@ namespace PX.Objects.SO
             if (row == null) return;
 
             //Detach any splits that was linked to the just deleted package
-            foreach(SOShipLineSplit split in this.Splits.Cache.Cached)
+            foreach(SOShipLineSplitPick split in this.Splits.Cache.Cached)
             {
-                var ext = this.Splits.Cache.GetExtension<SOShipLineSplitExt>(split);
-                if (ext.PackageLineNbr == row.LineNbr)
+                if (split.PackageLineNbr == row.LineNbr)
                 {
-                    ext.PackageLineNbr = null;
+                    split.PackageLineNbr = null;
                     this.Splits.Update(split);
                 }
             }
