@@ -51,7 +51,7 @@ namespace PX.Objects.SO
                 //Retrieve shipment details and deduct from packaged quantities
                 foreach (SOShipLineSplit ls in PXSelectGroupBy<SOShipLineSplit,
                     Where<SOShipLineSplit.shipmentNbr, Equal<Current<SOShipment.shipmentNbr>>,
-                    And<SOShipLineSplit.isStockItem, Equal<True>>>,
+                        And<SOShipLineSplit.isStockItem, Equal<True>>>,
                     Aggregate<
                         GroupBy<SOShipLineSplit.inventoryID,
                         GroupBy<SOShipLineSplit.subItemID,
