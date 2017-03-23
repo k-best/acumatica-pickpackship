@@ -243,7 +243,6 @@ namespace PX.Objects.SO
             }
 
             ClearScreen(false);
-            this.Document.Update(doc);
         }
 
 
