@@ -5,6 +5,7 @@ using PX.Objects.IN;
 namespace PX.Objects.SO
 {
     [Serializable]
+    [PXCacheName(PX.Objects.SO.Messages.SOShipLine)]
     public class SOShipLinePick : SOShipLine
     {
         public abstract class pickedQty : IBqlField { }

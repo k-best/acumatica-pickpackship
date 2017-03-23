@@ -4,7 +4,6 @@ using PX.Objects.SO;
 
 namespace PX.Objects.SO
 {
-    [Serializable]
     public class SOPackageDetailPick : SOPackageDetail
     {
         public abstract new class shipmentNbr : PX.Data.IBqlField { }

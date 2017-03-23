@@ -13,7 +13,12 @@ namespace PX.Objects.WM
         public const string MissingFileIdError = "Print job has no 'Report ID' or 'FILEID' parameter defined.";
 
         #region DAC Names
+        public const string SMPrintJob = "Print Job";
+        public const string SMPrintJobParameter = "Print Job Parameter";
+        public const string SMPrintQueue = "Print Queue";
+        public const string SMScale = "Scale";
         public const string SOPackageDetailSplit = "Package Detail Split";
+        public const string SOPickPackShipUserSetup = "Pick Pack Ship User Setup";
         #endregion
 
         #region Barcode
@@ -94,6 +99,7 @@ namespace PX.Objects.WM
         public const string ShipmentQuantityMismatchPrompt = "The quantity picked for one or more lines doesn't match with the shipment. Do you want to continue?";
         public const string ShipmentReady = "Shipment {0} loaded and ready to pick.";
         public const string PackageDetailsMismatch = "Package details don't match shipment details.";
+        public const string PackageForShipment = "Package for shipment {0}";
         #endregion
     }
 }

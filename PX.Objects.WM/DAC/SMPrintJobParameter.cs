@@ -4,6 +4,7 @@ using PX.Data;
 namespace PX.SM
 {
     [Serializable]
+    [PXCacheName(PX.Objects.WM.Messages.SMPrintJobParameter)]
     public class SMPrintJobParameter : IBqlTable
     {
         public abstract class jobID : PX.Data.IBqlField { }

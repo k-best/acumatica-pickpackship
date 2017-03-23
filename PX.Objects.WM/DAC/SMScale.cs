@@ -4,6 +4,7 @@ using PX.Data;
 namespace PX.SM
 {
     [Serializable]
+    [PXCacheName(PX.Objects.WM.Messages.SMScale)]
     public class SMScale : IBqlTable
     {
         public abstract class scaleID : PX.Data.IBqlField { }

@@ -2,10 +2,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using PX.Data;
-
+using PX.Objects.CS;
 
 namespace PX.Objects.SO
 {
+    //TODO: Move to SOShipmentEntry graph when we integrate into Acumatica code base
     public class SOShipmentEntryPackageDetailExt : PXGraphExtension<SOShipmentEntry>
     {
         public PXSelect<SOPackageDetailSplit,
@@ -21,6 +22,24 @@ namespace PX.Objects.SO
             PackageDetailSplit.AllowUpdate = Base.Packages.AllowUpdate;
         }
 
+        public delegate void ShipPackagesDelegate(SOShipment shiporder);
+        [PXOverride]
+        public virtual void ShipPackages(SOShipment shiporder, ShipPackagesDelegate baseMethod)
+        {
+            Carrier carrier = PXSelect<Carrier, Where<Carrier.carrierID, Equal<Required<SOShipment.shipVia>>>>.Select(Base, shiporder.ShipVia);
+            if(carrier != null && carrier.IsExternal == true && shiporder.ShippedViaCarrier != true)
+            {
+                //Automatically print return label if enabled for selected ship via
+                var ext = PXCache<Carrier>.GetExtension<CS.CarrierExt>(carrier);
+                if (ext.ReturnLabel == true)
+                {
+                    Base.GetReturnLabels(shiporder);
+                }
+            }
+
+            baseMethod(shiporder);
+        }
+
         public delegate void ConfirmShipmentDelegate(SOOrderEntry docgraph, SOShipment shiporder);
         [PXOverride]
         public void ConfirmShipment(SOOrderEntry docgraph, SOShipment shiporder, ConfirmShipmentDelegate baseMethod)
@@ -33,12 +52,12 @@ namespace PX.Objects.SO
             var packagedQuantities = new Dictionary<Tuple<int?, int?, string, string>, decimal>();
 
             //Get a summary of all the package details
-            foreach (SOPackageDetailSplit ps in PXSelectGroupBy<SOPackageDetailSplit, 
+            foreach (SOPackageDetailSplit ps in PXSelectGroupBy<SOPackageDetailSplit,
                 Where<SOPackageDetailSplit.shipmentNbr, Equal<Current<SOShipment.shipmentNbr>>>,
                 Aggregate<
-                    GroupBy<SOPackageDetailSplit.inventoryID, 
-                    GroupBy<SOPackageDetailSplit.subItemID, 
-                    GroupBy<SOPackageDetailSplit.lotSerialNbr, 
+                    GroupBy<SOPackageDetailSplit.inventoryID,
+                    GroupBy<SOPackageDetailSplit.subItemID,
+                    GroupBy<SOPackageDetailSplit.lotSerialNbr,
                     GroupBy<SOPackageDetailSplit.uOM,
                     Sum<SOPackageDetailSplit.baseQty>>>>>>>.Select(Base))
             {
@@ -65,16 +84,16 @@ namespace PX.Objects.SO
                 }
 
                 // Anything left with a quantity other than 0 need to be flagged as an error.
-                foreach(var key in packagedQuantities.Keys)
+                foreach (var key in packagedQuantities.Keys)
                 {
-                    if(packagedQuantities[key] != 0)
+                    if (packagedQuantities[key] != 0)
                     {
                         packageDetailsValid = false;
                         break;
                     }
                 }
             }
-            
+
             if (packageDetailsValid)
             {
                 baseMethod(docgraph, shiporder);

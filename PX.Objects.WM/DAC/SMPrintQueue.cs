@@ -4,6 +4,7 @@ using PX.Data;
 namespace PX.SM
 {
     [Serializable]
+    [PXCacheName(PX.Objects.WM.Messages.SMPrintQueue)]
     public class SMPrintQueue : IBqlTable
     {
         public abstract class printQueue : PX.Data.IBqlField { }

@@ -4,6 +4,7 @@ using PX.Data;
 namespace PX.SM
 {
     [Serializable]
+    [PXCacheName(PX.Objects.WM.Messages.SOPickPackShipUserSetup)]
     public class SOPickPackShipUserSetup : IBqlTable
     {
         public abstract class userID : PX.Data.IBqlField { }

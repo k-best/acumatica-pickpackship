@@ -738,6 +738,7 @@ namespace PX.Objects.SO
             {
                 var newPackage = (SOPackageDetailPick)this.Packages.Cache.CreateInstance();
                 newPackage.BoxID = box.BoxID;
+                newPackage.Description = PXMessages.LocalizeFormatNoPrefix(WM.Messages.PackageForShipment, doc.ShipmentNbr);
                 newPackage = this.Packages.Insert(newPackage);
                 doc.CurrentPackageLineNbr = newPackage.LineNbr;
 
@@ -1178,10 +1179,11 @@ namespace PX.Objects.SO
 
                         UpdateShipmentPackages(graph);
 
-                        PXAction confAction = graph.Actions["Action"];
+                        PXAction action = graph.Actions["Action"];
                         var adapter = new PXAdapter(new DummyView(graph, graph.Document.View.BqlSelect, new List<object> { graph.Document.Current }));
+                        
                         adapter.Menu = SOShipmentEntryActionsAttribute.Messages.ConfirmShipment;
-                        confAction.PressButton(adapter);
+                        action.PressButton(adapter);
 
                         PreparePrintJobs(graph);
 

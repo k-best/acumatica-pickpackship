@@ -50,6 +50,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CSCarrierMaintExt.cs" />
+    <Compile Include="DAC\CarrierExt.cs" />
     <Compile Include="DAC\SMPrintQueue.cs" />
     <Compile Include="DAC\SMPrintJob.cs" />
     <Compile Include="DAC\SMPrintJobParameter.cs" />
