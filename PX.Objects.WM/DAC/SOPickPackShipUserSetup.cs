@@ -13,6 +13,12 @@ namespace PX.SM
         [PXUIField(DisplayName = "User")]
         public virtual Guid? UserID { get; set; }
 
+        public abstract class promptLocation : PX.Data.IBqlField { }
+        [PXDBBool]
+        [PXDefault(true)]
+        [PXUIField(DisplayName = "Prompt for Location", FieldClass = PX.Objects.IN.LocationAttribute.DimensionName)]
+        public virtual bool? PromptLocation { get; set; }
+
         public abstract class shipmentConfirmation : PX.Data.IBqlField { }
         [PXDBBool]
         [PXDefault(false)]

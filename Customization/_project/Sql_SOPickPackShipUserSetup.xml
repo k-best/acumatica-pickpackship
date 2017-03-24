@@ -2,6 +2,7 @@
     <CDATA name="TableSchemaXml"><![CDATA[<table name="SOPickPackShipUserSetup">
   <col name="CompanyID" type="Int" default="Zero" />
   <col name="UserID" type="UniqueIdentifier" />
+  <col name="PromptLocation" type="Bit" />
   <col name="ShipmentConfirmation" type="Bit" />
   <col name="ShipmentConfirmationQueue" type="VarChar(10)" nullable="true" />
   <col name="ShipmentLabels" type="Bit" />

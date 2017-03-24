@@ -607,7 +607,7 @@ namespace PX.Objects.SO
 
         protected virtual bool IsLocationRequired()
         {
-			return PXAccess.FeatureInstalled<FeaturesSet.warehouseLocation>();
+			return PXAccess.FeatureInstalled<FeaturesSet.warehouseLocation>() && this.UserSetup.Current.PromptLocation == true;
         }
         
         protected virtual bool SetCurrentInventoryIDByItemBarcode(string barcode, out bool lotSerialNumbered)

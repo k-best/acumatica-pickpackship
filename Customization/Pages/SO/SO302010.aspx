@@ -205,16 +205,18 @@
         <AutoSize Enabled="True" Container="Window" />
     </px:PXTab>
     <%-- Settings --%>
-    <px:PXSmartPanel ID="PanelPrintSettings" runat="server" Height="150px" Width="400px" Caption="Settings" CaptionVisible="True"
-        Key="UserSetup" AutoCallBack-Command="Refresh" AutoCallBack-Enabled="True" AutoCallBack-Target="frmPrintSettings">
-        <px:PXFormView ID="frmPrintSettings" runat="server" DataSourceID="ds" DataMember="UserSetup" SkinID="Transparent">
+    <px:PXSmartPanel ID="PanelSettings" runat="server" Height="300px" Width="400px" Caption="Settings" CaptionVisible="True"
+        Key="UserSetup" AutoCallBack-Command="Refresh" AutoCallBack-Enabled="True" AutoCallBack-Target="frmSettings">
+        <px:PXFormView ID="frmSettings" runat="server" DataSourceID="ds" DataMember="UserSetup" SkinID="Transparent">
             <Template>
-                <px:PXLayoutRule ID="PXLayoutRule1" runat="server" LabelsWidth="M" ControlSize="M" StartGroup="True" SuppressLabel="True" GroupCaption="Shipment Confirmation"/>
+                <px:PXLayoutRule ID="PXLayoutRule7" runat="server" LabelsWidth="M" ControlSize="M" StartGroup="True" SuppressLabel="True" GroupCaption="General"/>
+                <px:PXCheckBox ID="PXCheckBox2" runat="server" DataField="PromptLocation" CommitChanges="true" />
+
+                <px:PXLayoutRule ID="PXLayoutRule1" runat="server" LabelsWidth="M" ControlSize="M" StartGroup="True" SuppressLabel="True" GroupCaption="Printing"/>
                 <px:PXCheckBox ID="edShipmentConfirmation" runat="server" DataField="ShipmentConfirmation" CommitChanges="true" />
                 <px:PXLayoutRule ID="PXLayoutRule3" runat="server" LabelsWidth="M" ControlSize="M" SuppressLabel="False"/>
-                <px:PXSelector ID="edShipmentConfirmationQueue" runat="server" DataField="ShipmentConfirmationQueue" CommitChanges="true" AutoComplete="false" />
-                
-                <px:PXLayoutRule ID="PXLayoutRule2" runat="server" LabelsWidth="M" ControlSize="M" StartGroup="True" SuppressLabel="True" GroupCaption="Shipment Labels"/>
+                <px:PXSelector ID="edShipmentConfirmationQueue" runat="server" DataField="ShipmentConfirmationQueue" CommitChanges="true" AutoComplete="false" />                
+                <px:PXLayoutRule ID="PXLayoutRule2" runat="server" LabelsWidth="M" ControlSize="M" SuppressLabel="true"/>
                 <px:PXCheckBox ID="edShipmentLabels" runat="server" DataField="ShipmentLabels" CommitChanges="true" />
                 <px:PXLayoutRule ID="PXLayoutRule5" runat="server" LabelsWidth="M" ControlSize="M" SuppressLabel="False"/>
                 <px:PXSelector ID="edShipmentLabelsQueue" runat="server" DataField="ShipmentLabelsQueue" CommitChanges="true" AutoComplete="false" />
