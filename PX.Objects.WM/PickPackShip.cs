@@ -704,6 +704,7 @@ namespace PX.Objects.SO
             {
                 doc.Status = ScanStatuses.Error;
                 doc.Message = PXMessages.LocalizeNoPrefix(WM.Messages.InventoryMissing);
+                SetScanState(ScanStates.Item); //Otherwise we can get stuck in ScanStates.Location
             }
         }
 
