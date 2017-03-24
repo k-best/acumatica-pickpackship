@@ -1233,13 +1233,7 @@ namespace PX.Objects.SO
             PrintJobMaint jobMaint = null;
             var printSetup = (SOPickPackShipUserSetup) UserSetup.Select();
 
-            if (printSetup.ShipmentConfirmation == true)
-            {
-                //TODO: SO642000 shouldn't be hardcoded - this needs to be read from notification; see PickListPrintToQueueExtensions for example
-                if (jobMaint == null) jobMaint = PXGraph.CreateInstance<PrintJobMaint>();
-                jobMaint.AddPrintJob(PXMessages.LocalizeFormatNoPrefix(WM.Messages.PrintShipmentConfirmation, graph.Document.Current.ShipmentNbr), printSetup.ShipmentConfirmationQueue, "SO642000", new Dictionary<string, string> { { "ShipmentNbr", graph.Document.Current.ShipmentNbr } });
-            }
-            
+            //Labels should ALWAYS be printer first because they go out faster, and that gives time to user to peel/stick them while shipment confirmation is spooling
             if (printSetup.ShipmentLabels == true)
             {
                 if (jobMaint == null) jobMaint = PXGraph.CreateInstance<PrintJobMaint>();
@@ -1261,6 +1255,13 @@ namespace PX.Objects.SO
                         }
                     }
                 }
+            }
+
+            if (printSetup.ShipmentConfirmation == true)
+            {
+                //TODO: SO642000 shouldn't be hardcoded - this needs to be read from notification; see PickListPrintToQueueExtensions for example
+                if (jobMaint == null) jobMaint = PXGraph.CreateInstance<PrintJobMaint>();
+                jobMaint.AddPrintJob(PXMessages.LocalizeFormatNoPrefix(WM.Messages.PrintShipmentConfirmation, graph.Document.Current.ShipmentNbr), printSetup.ShipmentConfirmationQueue, "SO642000", new Dictionary<string, string> { { "ShipmentNbr", graph.Document.Current.ShipmentNbr } });
             }
         }
         
