@@ -27,7 +27,7 @@
         public abstract class splitLineNbr : PX.Data.IBqlField { }
         [PXDBInt(IsKey = true)]
         [PXDefault()]
-        [PXLineNbr(typeof(SOShipment.lineCntr))]
+        [PXLineNbr(typeof(SOShipment.lineCntr), false)]
         public virtual Int32? SplitLineNbr { get; set; }
         #endregion
         #region InventoryID
