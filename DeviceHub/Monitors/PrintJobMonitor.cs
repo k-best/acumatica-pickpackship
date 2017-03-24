@@ -227,7 +227,7 @@ namespace Acumatica.DeviceHub
                     }
                     else
                     {
-                        PrintRaw(queue, data);
+                        PrintRaw(queue, jobDescription, data);
                     }
                 }
                 else
@@ -252,10 +252,10 @@ namespace Acumatica.DeviceHub
             return (data.Length > 4 && data[0] == 0x25 && data[1] == 0x50 && data[2] == 0x44 && data[3] == 0x46);
         }
 
-        private void PrintRaw(PrintQueue queue, byte[] rawData)
+        private void PrintRaw(PrintQueue queue, string jobDescription, byte[] rawData)
         {
             _progress.Report(new MonitorMessage(String.Format(Strings.PrintRawDataNotify, queue.QueueName, queue.PrinterName)));
-            RawPrinterHelper.SendRawBytesToPrinter(queue.PrinterName, rawData);
+            RawPrinterHelper.SendRawBytesToPrinter(queue.PrinterName, jobDescription, rawData);
         }
 
         private void PrintPdf(string jobDescription, PrintQueue queue, byte[] pdfReport)

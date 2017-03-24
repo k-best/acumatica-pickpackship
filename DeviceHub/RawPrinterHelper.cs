@@ -46,14 +46,14 @@ namespace Acumatica.DeviceHub
         // When the function is given a printer name and an unmanaged array
         // of bytes, the function sends those bytes to the print queue.
         // Returns true on success, false on failure.
-        public static bool SendRawBytesToPrinter(string printerName, byte[] data)
+        public static bool SendRawBytesToPrinter(string printerName, string jobDescription, byte[] data)
         {
             Int32 dwError = 0, dwWritten = 0;
             IntPtr hPrinter = new IntPtr(0);
             DOCINFOA di = new DOCINFOA();
             bool bSuccess = false; // Assume failure unless you specifically succeed.
 
-            di.pDocName = "Acumatica DeviceHub Document";
+            di.pDocName = jobDescription;
             di.pDataType = "RAW";
 
             // Open the printer.
