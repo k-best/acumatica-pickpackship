@@ -170,10 +170,9 @@ namespace PX.Objects.SO
         public PXSelect<SOPickPackShipUserSetup, Where<SOPickPackShipUserSetup.userID, Equal<Current<AccessInfo.userID>>>> UserSetup;
         public PXCancel<PickPackInfo> Cancel;
         public PXFilter<PickPackInfo> Document;
-        public PXSelect<SOShipment, Where<SOShipment.shipmentNbr, Equal<Current<PickPackInfo.shipmentNbr>>>> Shipment;
         public PXSelect<SOShipLinePick, Where<SOShipLinePick.shipmentNbr, Equal<Current<PickPackInfo.shipmentNbr>>>, OrderBy<Asc<SOShipLinePick.shipmentNbr, Asc<SOShipLine.lineNbr>>>> Transactions;
         public PXSelect<SOShipLineSplitPick, Where<SOShipLineSplitPick.shipmentNbr, Equal<Current<SOShipLinePick.shipmentNbr>>, And<SOShipLineSplitPick.lineNbr, Equal<Current<SOShipLinePick.lineNbr>>>>> Splits;
-        public PXSelect<SOPackageDetailPick, Where<SOPackageDetailPick.shipmentNbr, Equal<Current<SOShipment.shipmentNbr>>>> Packages;
+        public PXSelect<SOPackageDetailPick, Where<SOPackageDetailPick.shipmentNbr, Equal<Current<PickPackInfo.shipmentNbr>>>> Packages;
         public PXSelect<SOShipLineSplitPick, Where<SOPackageDetailSplit.shipmentNbr, Equal<Current<SOPackageDetailPick.shipmentNbr>>>> PackageSplits;
         public PXSelectOrderBy<ScanLog, OrderBy<Desc<ScanLog.logLineDate>>> ScanLogs;
 
@@ -189,6 +188,7 @@ namespace PX.Objects.SO
         protected void PickPackInfo_RowSelected(PXCache sender, PXRowSelectedEventArgs e)
         {
             EnsureUserSetupExists();
+
             Transactions.Cache.AllowDelete = false;
             Transactions.Cache.AllowInsert = false;
             Transactions.Cache.AllowUpdate = false;
@@ -214,7 +214,7 @@ namespace PX.Objects.SO
             var doc = e.Row as PickPackInfo;
             if (doc == null) return;
 
-            SelectShipment(doc);
+            SelectShipment();
         }
 
         protected virtual void EnsureUserSetupExists()
@@ -226,10 +226,12 @@ namespace PX.Objects.SO
             }
         }
 
-        private void SelectShipment(PickPackInfo doc)
+        private void SelectShipment()
         {
-            this.Shipment.Current = this.Shipment.Select();
-            if (this.Shipment.Current != null)
+            var doc = this.Document.Current;
+            var shipment = PXSelectorAttribute.Select<PickPackInfo.shipmentNbr>(this.Document.Cache, doc);
+
+            if (shipment != null)
             {
                 doc.Status = ScanStatuses.Scan;
                 doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.ShipmentReady, doc.ShipmentNbr);
@@ -259,8 +261,8 @@ namespace PX.Objects.SO
             //We only use this view as a container for picked lot/serial numbers. We don't care about what's in the DB for this shipment.
             foreach(SOShipLineSplit row in Splits.Cache.Cached)
             {
-                if (Shipment.Current != null && row.ShipmentNbr == Shipment.Current.ShipmentNbr &&
-                    Transactions.Current != null && row.LineNbr == Transactions.Current.LineNbr)
+                if (this.Document.Current != null && row.ShipmentNbr == this.Document.Current.ShipmentNbr &&
+                    this.Transactions.Current != null && row.LineNbr == this.Transactions.Current.LineNbr)
                 {
                     yield return row;
                 }
@@ -272,7 +274,7 @@ namespace PX.Objects.SO
             //We only use this view as a container for picked packages. We don't care about what's in the DB for this shipment.
             foreach (SOPackageDetailPick row in Packages.Cache.Cached)
             {
-                if (this.Shipment.Current != null && row.ShipmentNbr == this.Shipment.Current.ShipmentNbr && Packages.Cache.GetStatus(row) == PXEntryStatus.Inserted)
+                if (this.Document.Current != null && row.ShipmentNbr == this.Document.Current.ShipmentNbr && Packages.Cache.GetStatus(row) == PXEntryStatus.Inserted)
                 {
                     yield return row;
                 }
@@ -350,7 +352,7 @@ namespace PX.Objects.SO
         {
             var doc = this.Document.Current;
             doc.ShipmentNbr = barcode.Trim();
-            SelectShipment(doc);
+            SelectShipment();
         }
 
         protected virtual void ProcessCommands(string barcode)
@@ -508,15 +510,23 @@ namespace PX.Objects.SO
             if (doc.LotSerialSearch == true)
             {
                 INLotSerialStatus lotSerialStatus = GetLotSerialStatus(barcode);
-                INLotSerClass lotSerialClass = (lotSerialStatus != null ? GetLotSerialClass(lotSerialStatus.InventoryID) : null);
-
-                if (ValidateLotSerialStatus(barcode, lotSerialStatus, lotSerialClass))
+                if (lotSerialStatus == null)
                 {
-                    SetCurrentInventoryIDByLotSerial(lotSerialStatus);
+                    doc.Status = ScanStatuses.Error;
+                    doc.Message = PXMessages.LocalizeFormatNoPrefix(WM.Messages.LotMissing, barcode);
+                    return;
                 }
                 else
                 {
-                    return;
+                    INLotSerClass lotSerialClass = GetLotSerialClass(lotSerialStatus.InventoryID);
+                    if (ValidateLotSerialStatus(barcode, lotSerialStatus, lotSerialClass))
+                    {
+                        SetCurrentInventoryIDByLotSerial(lotSerialStatus);
+                    }
+                    else
+                    {
+                        return;
+                    }
                 }
             }
             else
@@ -577,8 +587,8 @@ namespace PX.Objects.SO
         {
             var doc = this.Document.Current;
 
-            INLocation location = PXSelect<INLocation,
-                                 Where<INLocation.siteID, Equal<Current<SOShipment.siteID>>,
+            INLocation location = PXSelectJoin<INLocation, InnerJoin<SOShipment, On<INLocation.siteID, Equal<SOShipment.siteID>>>,
+                                 Where<SOShipment.shipmentNbr, Equal<Current<PickPackInfo.shipmentNbr>>,
                                  And<INLocation.locationCD, Equal<Required<INLocation.locationCD>>>>>.Select(this, barcode);
 
             if(location == null)
@@ -908,9 +918,10 @@ namespace PX.Objects.SO
         {
             INLotSerialStatus lotSerialStatus = null;
 
-            foreach (INLotSerialStatus ls in PXSelect<INLotSerialStatus,
+            foreach (INLotSerialStatus ls in PXSelectJoin<INLotSerialStatus,
+                                             InnerJoin<SOShipment, On<INLotSerialStatus.siteID, Equal<SOShipment.siteID>>>,
                                              Where<INLotSerialStatus.qtyOnHand, Greater<Zero>,
-                                             And<INLotSerialStatus.siteID, Equal<Current<SOShipment.siteID>>,
+                                             And<SOShipment.shipmentNbr, Equal<Current<PickPackInfo.shipmentNbr>>,
                                              And<INLotSerialStatus.lotSerialNbr, Equal<Required<INLotSerialStatus.lotSerialNbr>>>>>>.Select(this, barcode))
             {
                 if (lotSerialStatus == null)
