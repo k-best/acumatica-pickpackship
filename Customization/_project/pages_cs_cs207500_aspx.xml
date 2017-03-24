@@ -1,0 +1,14 @@
+﻿<Page path="~/pages/cs/cs207500.aspx" ControlId="1" pageSource="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">
+    <PXTabItem Text="Details" ParentId="phG_tab_Items#0" TypeFullName="PX.Web.UI.PXTabItem">
+        <Children Key="Template">
+            <AddItem>
+                <PXCheckBox TypeFullName="PX.Web.UI.PXCheckBox">
+                    <Prop Key="Virtual:ApplyStylesheetSkin" />
+                    <Prop Key="ID" Value="CstPXCheckBox1" />
+                    <Prop Key="DataField" Value="ReturnLabel" />
+                </PXCheckBox>
+            </AddItem>
+            <PXSelector DataField="TaxCategoryID" OriginalIndex="9" />
+        </Children>
+    </PXTabItem>
+</Page>

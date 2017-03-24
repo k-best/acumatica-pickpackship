@@ -1,0 +1,3 @@
+﻿<Table TableName="Carrier">
+    <Column TableName="Carrier" ColumnName="ReturnLabel" ColumnType="bool" AllowNull="True" MaxLength="25" DecimalPrecision="2" IsNewColumn="True" IsUnicode="True" />
+</Table>
