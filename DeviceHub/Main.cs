@@ -15,6 +15,7 @@ namespace Acumatica.DeviceHub
     public partial class Main : Form
     {
         private List<Task> _tasks;
+        private List<IMonitor> _monitors;
         private HashSet<object> _errorTasks;
         private CancellationTokenSource _cancellationTokenSource;
 
@@ -45,6 +46,7 @@ namespace Acumatica.DeviceHub
             WriteToLog(Strings.StartMonitoringNotify);
             _cancellationTokenSource = new CancellationTokenSource();
             _tasks = new List<Task>();
+            _monitors = new List<IMonitor>();
             _errorTasks = new HashSet<object>();
 
             var monitorTypes = new Type[] { typeof(PrintJobMonitor), typeof(ScaleMonitor) };
@@ -67,7 +69,12 @@ namespace Acumatica.DeviceHub
             WriteToLog(Strings.StopMonitoringNotify);
             _cancellationTokenSource.Cancel();
             Task.WaitAll(_tasks.ToArray());
+            foreach (var monitor in _monitors.OfType<IDisposable>())
+            {
+                monitor.Dispose();
+            }
             _tasks = null;
+            _monitors = null;
             _cancellationTokenSource = null;
             WriteToLog(Strings.StopMonitoringSuccessNotify);
         }

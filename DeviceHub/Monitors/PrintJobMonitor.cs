@@ -3,72 +3,154 @@ using Acumatica.DeviceHub.ScreenApi;
 using Newtonsoft.Json;
 using PdfPrintingNet;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing.Printing;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Acumatica.DeviceHub.DTO;
+using Microsoft.AspNet.SignalR.Client;
+using Newtonsoft.Json.Linq;
 
 namespace Acumatica.DeviceHub
 {
-    class PrintJobMonitor : IMonitor
+    internal class PrintJobMonitor : IMonitor, IDisposable
     {
         private IProgress<MonitorMessage> _progress;
 
         private const string PrintJobsScreen = "SM206500";
         private const string PrintQueuesScreen = "SM206510";
-        private ScreenApi.Screen _screen;
+        private Screen _screen;
         private Dictionary<string, PrintQueue> _queues;
-
+        private ConcurrentDictionary<string,string> _alreadyProcessed;
+        private readonly string _basicAuthToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(Properties.Settings.Default.Login + ":" + Settings.ToInsecureString(Settings.DecryptString(Properties.Settings.Default.Password))));
+        private string _companyNameSegment;
+        private static readonly string Printjobs = "PrintJobs";
+        private HubConnection _connection { get; set; }
+        
         public Task Initialize(Progress<MonitorMessage> progress, CancellationToken cancellationToken)
         {
+            var loginSplit = Properties.Settings.Default.Login.Split('@');
+            if (loginSplit.Length > 1 && !string.IsNullOrEmpty(loginSplit[loginSplit.Length - 1]))
+            {
+                _companyNameSegment = "/" + loginSplit[loginSplit.Length - 1];
+            }
+           
             _progress = progress;
+            _alreadyProcessed = new ConcurrentDictionary<string, string>();
             _queues = JsonConvert.DeserializeObject<IEnumerable<PrintQueue>>(Properties.Settings.Default.Queues).ToDictionary<PrintQueue, string>(q => q.QueueName);
-
-            if(_queues.Count == 0)
+            
+            if (_queues.Count == 0)
             {
                 _progress.Report(new MonitorMessage(Strings.PrintQueuesConfigurationMissingWarning));
                 return null;
             }
-
-            return Task.Run(() =>
+            return Start(cancellationToken).ContinueWith(async t =>
             {
-                while (true)
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        LogoutFromAcumatica();
-                        break;
-                    }
-
-                    try
-                    { 
-                        if(_screen != null || LoginToAcumatica())
-                        { 
-                            PollPrintJobs();
-                        }
-
-                        System.Threading.Thread.Sleep(Properties.Settings.Default.PrinterPollingInterval);
-                    }
-                    catch(Exception ex)
-                    {
-                        // Assume the server went offline or our session got lost - new login will be attempted in next iteration
-                        _progress.Report(new MonitorMessage(String.Format(Strings.PollingQueueUnknownError, ex.Message), MonitorMessage.MonitorStates.Error));
-                        _screen = null;
-                        System.Threading.Thread.Sleep(Properties.Settings.Default.ErrorWaitInterval);
-                    }
-                }
-            });
+                if (t.IsFaulted)
+                    await Restart(cancellationToken);
+            }, cancellationToken);
         }
-        
+
+        private async Task Restart(CancellationToken cancellationToken)
+        {
+            if(cancellationToken.IsCancellationRequested)
+                return;
+            Thread.Sleep(Properties.Settings.Default.ErrorWaitInterval);
+            Stop();
+            await Start(cancellationToken).ContinueWith(async t =>
+            {
+                if (t.IsFaulted)
+                    await Restart(cancellationToken);
+            }, cancellationToken);
+        }
+
+        private async Task Start(CancellationToken cancellationToken)
+        {
+            var jobsRequestUri = FormOdataUri();
+            try
+            {
+                while (!LoginToAcumatica())
+                {
+                    Thread.Sleep(Properties.Settings.Default.PrinterPollingInterval);
+                }
+                await SubscribeToPushNotificationsAboutPrintJobs(cancellationToken);
+                await PollPrintJobs(jobsRequestUri, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Assume the server went offline or our session got lost - new login will be attempted in next iteration
+                _progress.Report(new MonitorMessage(string.Format(Strings.PollingQueueUnknownError, ex.Message),
+                    MonitorMessage.MonitorStates.Error));
+                throw;
+            }
+        }
+
+        private void Stop()
+        {
+            LogoutFromAcumatica();
+            _screen?.Dispose();
+            _connection.Stop();
+        }
+
+        private async Task SubscribeToPushNotificationsAboutPrintJobs(CancellationToken cancellationToken)
+        {
+            _connection = new HubConnection(Properties.Settings.Default.AcumaticaUrl);
+            _connection.Headers.Add("Authorization", "Basic " + _basicAuthToken);
+            var hub = _connection.CreateHubProxy("PushNotificationsHub");
+            await _connection.Start().ContinueWith(task =>
+            {
+                if (task.IsFaulted)
+                {
+                    _progress.Report(new MonitorMessage($"There was an error opening the connection:{task.Exception?.GetBaseException()}", MonitorMessage.MonitorStates.Error));
+                }
+                else
+                {
+                    hub.Invoke<string>("Subscribe", Printjobs).Wait(cancellationToken);
+                }
+            }, cancellationToken);
+            hub.On<NotificationResult>("ReceiveNotification", nr=>ProcessPrintJobNotification(nr, cancellationToken));
+            _connection.Closed += () => Restart(cancellationToken).Wait(cancellationToken);
+        }
+
+        private void ProcessPrintJobNotification(NotificationResult nr, CancellationToken cancellationToken)
+        {
+            var inserted = nr.Inserted.GroupBy(c => new PrintJob() {Description = c.Description, JobID = c.JobID, PrintQueue = c.PrintQueue, ReportID = c.ReportID}, c=>new{c.ParameterName, c.ParameterValue});
+            var deleted = nr.Deleted.GroupBy(c => new PrintJob() { Description = c.Description, JobID = c.JobID, PrintQueue = c.PrintQueue, ReportID = c.ReportID }, c => new { c.ParameterName, c.ParameterValue }).ToDictionary(c=>c.Key, c=>c.ToArray());
+            foreach (var row in inserted)
+            {
+                PrintQueue queue;
+                if (deleted.ContainsKey(row.Key)||!_queues.TryGetValue(row.Key.PrintQueue, out queue)) continue;
+                _alreadyProcessed?.TryAdd(row.Key.JobID, row.Key.JobID);
+                try
+                {
+                    ProcessJob(queue, row.Key.JobID, row.Key.ReportID, row.Key.Description,
+                        row.AsEnumerable()
+                            .Where(c => c.ParameterName != null)
+                            .ToDictionary(c => c.ParameterName, c => c.ParameterValue));
+                }
+                catch (Exception e)
+                {
+                    _progress.Report(new MonitorMessage(string.Format(Strings.PollingQueueUnknownError, e.Message),
+                    MonitorMessage.MonitorStates.Error));
+                    Restart(cancellationToken).Wait(cancellationToken);
+                }
+            }
+        }
+
         private bool LoginToAcumatica()
         {
             _progress.Report(new MonitorMessage(String.Format(Strings.LoginNotify, Properties.Settings.Default.AcumaticaUrl), MonitorMessage.MonitorStates.Undefined));
-            _screen = new ScreenApi.Screen();
-            _screen.Url = Properties.Settings.Default.AcumaticaUrl + "/Soap/.asmx";
-            _screen.CookieContainer = new System.Net.CookieContainer();
+            _screen = new Screen
+            {
+                Url = Properties.Settings.Default.AcumaticaUrl + "/Soap/.asmx",
+                CookieContainer = new CookieContainer()
+            };
 
             try
             {
@@ -85,18 +167,16 @@ namespace Acumatica.DeviceHub
         private void LogoutFromAcumatica()
         {
             _progress.Report(new MonitorMessage(Strings.LogoutNotify));
-            if (_screen != null)
+            if (_screen == null) return;
+            try
             {
-                try
-                {
-                    _screen.Logout();
-                }
-                catch
-                {
-                    //Ignore all errors in logout.
-                }
-                _screen = null;
+                _screen.Logout();
             }
+            catch
+            {
+                //Ignore all errors in logout.
+            }
+            _screen = null;
         }
 
         private bool VerifyQueues()
@@ -116,7 +196,6 @@ namespace Acumatica.DeviceHub
                     return false;
                 }
             }
-
             return true;
         }
 
@@ -137,62 +216,48 @@ namespace Acumatica.DeviceHub
 
             return queueNames;
         }
-        
-        private void PollPrintJobs()
+
+        private async Task PollPrintJobs(string jobsRequestUri, CancellationToken cancellationToken)
         {
             _progress.Report(new MonitorMessage(Strings.PrintJobStartPollingNotify));
-            var commands = new Command[]
+
+            var httpClient = new HttpClient()
             {
-                new Field { FieldName = "JobID", ObjectName = "Job" },
-                new Field { FieldName = "ReportID", ObjectName = "Job" },
-                new Field { FieldName = "PrintQueue", ObjectName = "Job" },
-                new Field { FieldName = "Description", ObjectName = "Job" },
-                new Field { FieldName = "ParameterName", ObjectName = "Parameters" },
-                new Field { FieldName = "ParameterValue", ObjectName = "Parameters" },
-                new Field { FieldName = "ParameterValue", ObjectName = "Parameters" },
+                BaseAddress = new Uri(Properties.Settings.Default.AcumaticaUrl + "/odata/"),
+                DefaultRequestHeaders = { Accept = { MediaTypeWithQualityHeaderValue.Parse("application/json")}, Authorization = new AuthenticationHeaderValue("Basic", _basicAuthToken) }
             };
 
-            var filters = new List<Filter>();
-            foreach (var queue in _queues)
+            var result = await httpClient.GetAsync(httpClient.BaseAddress+_companyNameSegment + jobsRequestUri, cancellationToken);
+            if (result.StatusCode == HttpStatusCode.NotFound)
             {
-                filters.Add(new Filter { Field = new Field { FieldName = "PrintQueue", ObjectName = "Job" }, Value = queue.Key, Condition = FilterCondition.Equals, Operator = FilterOperator.Or });
+                result = await httpClient.GetAsync(jobsRequestUri, cancellationToken);
             }
-
-            var results = _screen.Export(PrintJobsScreen, commands, filters.ToArray(), 0, false, true);
-
-            string currentJobID = null;
-            string reportID = null;
-            string queueName = null;
-            string description = null;
-            Dictionary<string, string> parameters = null;
-
-            if(results.Length == 0)
+            if (!result.IsSuccessStatusCode)
             {
-                _progress.Report(new MonitorMessage(Strings.EmptyQueueNotify, MonitorMessage.MonitorStates.Ok));
+                var errorContent = await result.Content.ReadAsStringAsync();
+                throw new InvalidOperationException(errorContent);
             }
-            else
+            var content = (await result.Content.ReadAsAsync<JObject>(cancellationToken));
+            var jobParameters = content.Value<JArray>("value").Select(c=>c.ToObject<PrintJobParameter>()).ToArray();
+
+            var jobs = jobParameters.GroupBy(c => new PrintJob() { Description = c.Description, JobID = c.JobID, PrintQueue = c.PrintQueue, ReportID = c.ReportID }, c => new { c.ParameterName, c.ParameterValue });
+            foreach (var job in jobs)
             {
-                _progress.Report(new MonitorMessage(Strings.ProcessPrintJobsNotify, MonitorMessage.MonitorStates.Ok));
+                if(cancellationToken.IsCancellationRequested)
+                    return;
+                PrintQueue queue;
+                if (job.Key.JobID == null || _alreadyProcessed.ContainsKey(job.Key.JobID) || !_queues.TryGetValue(job.Key.PrintQueue, out queue))
+                    continue;
+                ProcessJob(queue, job.Key.JobID, job.Key.ReportID, job.Key.Description,
+                    job.AsEnumerable().Where(c => c.ParameterName != null).ToDictionary(c => c.ParameterName, c => c.ParameterValue));
             }
+            _alreadyProcessed = null;
+        }
 
-            for (int i = 0; i < results.Length; i++)
-            {
-                if (results[i][0] != currentJobID)
-                {
-                    if (currentJobID != null) ProcessJob(_queues[queueName], currentJobID, reportID, description, parameters);
-
-                    currentJobID = results[i][0];
-                    reportID = results[i][1];
-                    queueName = results[i][2];
-                    description = results[i][3];
-
-                    parameters = new Dictionary<string, string>();
-                }
-
-                parameters.Add(results[i][4], results[i][5]);
-            }
-
-            if (currentJobID != null) ProcessJob(_queues[queueName], currentJobID, reportID, description, parameters);
+        private string FormOdataUri()
+        {
+            var filterValue = string.Join(" or ", _queues.Keys.Select(c => "PrintQueue eq '" + c + "'"));
+            return "/"+Printjobs+"?$filter=" + filterValue;
         }
 
         private void ProcessJob(PrintQueue queue, string jobID, string reportID, string jobDescription, Dictionary<string, string> parameters)
@@ -310,11 +375,11 @@ namespace Acumatica.DeviceHub
             {
                 pdfPrint.IsAutoRotate = true;
             }
-            else if(queue.Orientation == PrintQueue.PrinterOrientation.Landscape)
+            else if (queue.Orientation == PrintQueue.PrinterOrientation.Landscape)
             {
                 pdfPrint.IsLandscape = true;
             }
-            else if(queue.Orientation == PrintQueue.PrinterOrientation.Portrait)
+            else if (queue.Orientation == PrintQueue.PrinterOrientation.Portrait)
             {
                 pdfPrint.IsLandscape = false;
             }
@@ -370,6 +435,40 @@ namespace Acumatica.DeviceHub
             };
 
             var result = _screen.Submit(PrintJobsScreen, commands);
+        }
+
+        public void Dispose()
+        {
+            Stop();
+        }
+    }
+
+    public class PrintJob
+    {
+        public string JobID { get; set; }
+        public string ReportID { get; set; }
+        public string PrintQueue { get; set; }
+        public string Description { get; set; }
+
+        protected bool Equals(PrintJob other)
+        {
+            return string.Equals(JobID, other.JobID) && string.Equals(PrintQueue, other.PrintQueue);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((PrintJob)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return ((JobID != null ? JobID.GetHashCode() : 0) * 397) ^ (PrintQueue != null ? PrintQueue.GetHashCode() : 0);
+            }
         }
     }
 }
